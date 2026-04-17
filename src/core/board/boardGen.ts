@@ -5,6 +5,13 @@ import { Board, type BoardSize, type BoardGrid } from "./Board.ts";
 export type GenBoardOptions<TMaterialId extends string | number> = {
   seed: Seed;
   materialIds: readonly TMaterialId[];
+  /**
+   * Force exact pair counts for some materials.
+   *
+   * Example: requiredPairs: { bench: 3 } means the board will contain exactly
+   * 3 pairs (6 tiles) of "bench" (unless "bench" is the only available id).
+   */
+  requiredPairs?: Partial<Record<string, number>>;
 };
 
 function shuffleInPlace<T>(arr: T[], rngInt: (min: number, max: number) => number): void {
@@ -44,8 +51,42 @@ export function genBoard<TMaterialId extends string | number>(
 
   const tiles: TMaterialId[] = [];
   const pairs = total / 2;
-  for (let i = 0; i < pairs; i++) {
-    const id = materialIds[rng.int(0, materialIds.length)]!;
+
+  const required = options.requiredPairs ?? {};
+  const requiredKeys = Object.keys(required);
+  const materialSet = new Set(materialIds.map((x) => String(x)));
+
+  let requiredPairTotal = 0;
+  for (const k of requiredKeys) {
+    if (!materialSet.has(k)) {
+      throw new Error(`requiredPairs contains unknown materialId: ${k}`);
+    }
+    const v = required[k];
+    if (v === undefined) continue;
+    if (!Number.isInteger(v) || v < 0) {
+      throw new Error(`requiredPairs(${k}) must be a non-negative integer`);
+    }
+    requiredPairTotal += v;
+  }
+  if (requiredPairTotal > pairs) {
+    throw new Error(`requiredPairs total (${requiredPairTotal}) exceeds board capacity (${pairs})`);
+  }
+
+  // Add forced pairs first
+  for (const k of requiredKeys) {
+    const v = required[k];
+    if (!v) continue;
+    const id = materialIds.find((x) => String(x) === k)!;
+    for (let i = 0; i < v; i++) tiles.push(id, id);
+  }
+
+  // Fill the rest with a pool that excludes required ids (so "required" is exact)
+  const requiredKeySet = new Set(requiredKeys.filter((k) => (required[k] ?? 0) > 0));
+  const extraPool = materialIds.filter((id) => !requiredKeySet.has(String(id)));
+  const pool = extraPool.length > 0 ? extraPool : materialIds;
+
+  for (let i = requiredPairTotal; i < pairs; i++) {
+    const id = pool[rng.int(0, pool.length)]!;
     tiles.push(id, id);
   }
 
@@ -63,4 +104,3 @@ export function genBoard<TMaterialId extends string | number>(
 
   return new Board<TMaterialId>(size, grid);
 }
-

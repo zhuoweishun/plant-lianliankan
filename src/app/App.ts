@@ -1,6 +1,7 @@
 import { MatchScene } from "../ui/scenes/MatchScene.ts";
 import { GardenScene } from "../ui/scenes/GardenScene.ts";
 import { addInventoryToSave, loadSave, writeSave } from "../save/save.ts";
+import type { LevelId } from "../data/levels.ts";
 
 export function mountApp(root: HTMLElement): void {
   const app = new AppController(root);
@@ -33,17 +34,20 @@ class AppController {
   private showGarden(): void {
     this.swap(
       new GardenScene({
-        onGoMatch: () => this.showMatch(),
+        onGoMatch: (levelId) => this.showMatch(levelId),
       }),
     );
   }
 
-  private showMatch(): void {
+  private showMatch(levelId: LevelId): void {
     this.swap(
       new MatchScene({
-        onGoGarden: (sessionInventory) => {
-          const merged = addInventoryToSave(loadSave(), sessionInventory);
-          writeSave(merged);
+        levelId,
+        onGoGarden: ({ award, sessionInventory }) => {
+          if (award) {
+            const merged = addInventoryToSave(loadSave(), sessionInventory);
+            writeSave(merged);
+          }
           this.showGarden();
         },
       }),

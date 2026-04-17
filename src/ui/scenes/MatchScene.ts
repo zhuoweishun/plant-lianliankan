@@ -3,38 +3,42 @@ import type { Board } from "../../core/board/Board.ts";
 import { canLink, type Point } from "../../core/board/linkPath.ts";
 import { dropForMatch } from "../../core/drops/dropTable.ts";
 import { Inventory, type InventoryJSON } from "../../core/inventory/Inventory.ts";
-import { DECORATIONS, type DecorationId } from "../../data/decorations.ts";
+import { isGoalsCompleted } from "../../core/level/goals.ts";
+import { getDecoration, type DecorationId } from "../../data/decorations.ts";
+import { getLevel, type LevelId } from "../../data/levels.ts";
 
 type MaterialId = DecorationId;
 
 type Selected = Point & { materialId: MaterialId };
 
 type MatchSceneOptions = {
-  onGoGarden?: (sessionInventory: InventoryJSON) => void;
+  levelId: LevelId;
+  onGoGarden?: (payload: { award: boolean; sessionInventory: InventoryJSON }) => void;
 };
 
 export class MatchScene {
   private root: HTMLElement | null = null;
   private readonly options: MatchSceneOptions;
+  private readonly level: ReturnType<typeof getLevel>;
 
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private hudPre: HTMLPreElement | null = null;
+  private goalsEl: HTMLDivElement | null = null;
+  private winOverlayEl: HTMLDivElement | null = null;
 
   private board: Board<MaterialId> | null = null;
   private inventory = new Inventory<MaterialId>();
   private selected: Selected | null = null;
+  private state: "playing" | "won" = "playing";
 
   // Visual config
   private readonly cellSizeCssPx = 56;
   private readonly paddingCssPx = 12;
 
-  // Game config (MVP)
-  private readonly size = { width: 10, height: 8 };
-  private readonly materialIds: readonly MaterialId[] = DECORATIONS.map((d) => d.id);
-
-  constructor(options: MatchSceneOptions = {}) {
+  constructor(options: MatchSceneOptions) {
     this.options = options;
+    this.level = getLevel(options.levelId);
   }
 
   mount(root: HTMLElement): void {
@@ -45,26 +49,45 @@ export class MatchScene {
           <canvas class="board-canvas" aria-label="match board"></canvas>
         </main>
         <aside class="hud-pane">
-          <h2>本局掉落（Inventory JSON）</h2>
+          <h2>${this.level.name}</h2>
+          <div class="hud-goals" aria-label="level goals"></div>
+
+          <h2 style="margin-top: 12px;">本局掉落（Debug JSON）</h2>
           <pre class="hud-json" aria-label="inventory json"></pre>
+
           <div class="hud-actions">
             <button type="button" class="btn" data-action="restart">重新开局</button>
-            <button type="button" class="btn" data-action="to-garden" style="margin-left: 8px;">回花园</button>
+            <button type="button" class="btn" data-action="abandon" style="margin-left: 8px;">放弃回花园</button>
           </div>
           <p class="hud-hint">
-            操作：依次点击两张同素材牌；若 <code>canLink</code> 为真则消除并掉落 1 个同素材。
+            目标关卡：消除一对素材＝收集该素材 +1。<br />
+            只有胜利才会结算进背包。
           </p>
         </aside>
+      </div>
+
+      <div class="win-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); padding:16px;">
+        <div style="max-width:520px; margin: 10vh auto 0; background: rgba(18,26,22,0.96); border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:16px;">
+          <h2 style="margin:0 0 10px;">胜利！</h2>
+          <p style="margin:0 0 12px; color: rgba(255,255,255,0.75); font-size: 13px;">
+            本关目标已完成。点击下方按钮回花园结算。
+          </p>
+          <button type="button" class="btn" data-action="win-to-garden">回花园结算</button>
+        </div>
       </div>
     `;
 
     const canvas = this.root.querySelector<HTMLCanvasElement>("canvas.board-canvas");
     const pre = this.root.querySelector<HTMLPreElement>("pre.hud-json");
-    if (!canvas || !pre) {
+    const goals = this.root.querySelector<HTMLDivElement>("div.hud-goals");
+    const winOverlay = this.root.querySelector<HTMLDivElement>("div.win-overlay");
+    if (!canvas || !pre || !goals || !winOverlay) {
       throw new Error("MatchScene mount failed: missing DOM nodes");
     }
     this.canvas = canvas;
     this.hudPre = pre;
+    this.goalsEl = goals;
+    this.winOverlayEl = winOverlay;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D context not available");
@@ -87,6 +110,8 @@ export class MatchScene {
     this.canvas = null;
     this.ctx = null;
     this.hudPre = null;
+    this.goalsEl = null;
+    this.winOverlayEl = null;
     this.board = null;
     this.selected = null;
   }
@@ -95,7 +120,8 @@ export class MatchScene {
     const target = e.target as HTMLElement | null;
     const action = target?.getAttribute("data-action");
     if (action === "restart") this.restart();
-    if (action === "to-garden") this.options.onGoGarden?.(this.inventory.toJSON());
+    if (action === "abandon") this.options.onGoGarden?.({ award: false, sessionInventory: {} });
+    if (action === "win-to-garden") this.options.onGoGarden?.({ award: true, sessionInventory: this.inventory.toJSON() });
   };
 
   private readonly onResize = (): void => {
@@ -104,10 +130,10 @@ export class MatchScene {
   };
 
   private readonly onCanvasClick = (e: MouseEvent): void => {
+    if (this.state !== "playing") return;
     if (!this.board || !this.canvas) return;
 
     const rect = this.canvas.getBoundingClientRect();
-    // Use CSS pixels; conversion to board cell coordinates uses CSS sizes.
     const xCss = e.clientX - rect.left;
     const yCss = e.clientY - rect.top;
 
@@ -124,14 +150,12 @@ export class MatchScene {
 
     const picked: Selected = { x, y, materialId };
 
-    // First pick
     if (!this.selected) {
       this.selected = picked;
       this.draw();
       return;
     }
 
-    // Clicking the same cell cancels selection
     if (this.selected.x === picked.x && this.selected.y === picked.y) {
       this.selected = null;
       this.draw();
@@ -141,9 +165,8 @@ export class MatchScene {
     const a = this.selected;
     const b = picked;
 
-    // Second pick: validate match
     if (a.materialId !== b.materialId) {
-      this.selected = picked; // allow quick retargeting
+      this.selected = picked;
       this.draw();
       return;
     }
@@ -164,16 +187,25 @@ export class MatchScene {
       this.inventory.add(drop.materialId, drop.amount);
     }
     this.updateHud();
+
+    if (isGoalsCompleted(this.level.goals, this.inventory.toJSON())) {
+      this.state = "won";
+      this.showWinOverlay(true);
+    }
+
     this.draw();
   };
 
   private restart(): void {
-    this.board = genBoard(this.size, {
-      seed: `mvp-${Date.now()}`,
-      materialIds: this.materialIds,
+    this.board = genBoard(this.level.size, {
+      seed: `${this.level.id}-${Date.now()}`,
+      materialIds: this.level.materialIds,
+      requiredPairs: this.level.goals,
     });
     this.inventory = new Inventory<MaterialId>();
     this.selected = null;
+    this.state = "playing";
+    this.showWinOverlay(false);
     this.updateHud();
     this.resizeCanvasToBoard();
     this.draw();
@@ -182,6 +214,36 @@ export class MatchScene {
   private updateHud(): void {
     if (!this.hudPre) return;
     this.hudPre.textContent = JSON.stringify(this.inventory.toJSON(), null, 2);
+    this.renderGoals();
+  }
+
+  private renderGoals(): void {
+    if (!this.goalsEl) return;
+    const inv = this.inventory.toJSON();
+    const rows = Object.entries(this.level.goals)
+      .filter(([, need]) => (need ?? 0) > 0)
+      .map(([id, need]) => {
+        const def = getDecoration(id as DecorationId);
+        const have = inv[id] ?? 0;
+        const ok = have >= (need ?? 0);
+        return `
+          <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:${ok ? "rgba(6,214,160,0.10)" : "rgba(255,255,255,0.05)"};">
+            <span>${def.name}</span>
+            <code>${have}/${need}</code>
+          </div>
+        `;
+      })
+      .join("");
+
+    this.goalsEl.innerHTML = `
+      <div style="font-size:12px; color: rgba(255,255,255,0.75); margin-bottom:6px;">收集目标：</div>
+      ${rows || `<div style="font-size:12px; color: rgba(255,255,255,0.7);">（本关没有目标）</div>`}
+    `;
+  }
+
+  private showWinOverlay(show: boolean): void {
+    if (!this.winOverlayEl) return;
+    this.winOverlayEl.style.display = show ? "block" : "none";
   }
 
   private resizeCanvasToBoard(): void {
@@ -190,11 +252,9 @@ export class MatchScene {
     const cssW = this.paddingCssPx * 2 + this.board.width * this.cellSizeCssPx;
     const cssH = this.paddingCssPx * 2 + this.board.height * this.cellSizeCssPx;
 
-    // CSS size
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
 
-    // Backing store size (HiDPI aware)
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
@@ -218,14 +278,12 @@ export class MatchScene {
     const pad = this.paddingCssPx;
     const s = this.cellSizeCssPx;
 
-    // Cells
     for (let y = 0; y < this.board.height; y++) {
       for (let x = 0; x < this.board.width; x++) {
         const left = pad + x * s;
         const top = pad + y * s;
         const v = this.board.get(x, y);
 
-        // cell bg
         if (v === null) {
           ctx.fillStyle = "rgba(255,255,255,0.06)";
         } else {
@@ -233,7 +291,6 @@ export class MatchScene {
         }
         ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
 
-        // label
         if (v !== null) {
           ctx.fillStyle = "rgba(255,255,255,0.92)";
           ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -244,7 +301,6 @@ export class MatchScene {
       }
     }
 
-    // Grid lines
     ctx.strokeStyle = "rgba(255,255,255,0.18)";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -260,7 +316,6 @@ export class MatchScene {
     }
     ctx.stroke();
 
-    // Selection highlight
     if (this.selected) {
       const left = pad + this.selected.x * s;
       const top = pad + this.selected.y * s;
@@ -278,12 +333,9 @@ function shortLabel(id: MaterialId): string {
 }
 
 function colorFor(id: MaterialId): string {
-  // Deterministic HSL from a tiny string hash.
   const s = String(id);
   let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  }
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   const hue = h % 360;
   return `hsl(${hue} 70% 45%)`;
 }

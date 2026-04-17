@@ -39,5 +39,35 @@ describe("core/board/boardGen.genBoard", () => {
       expect((counts.get(id) ?? 0) % 2).toBe(0);
     }
   });
-});
 
+  it("可以强制某些素材出现指定的“对子数”", () => {
+    const board = genBoard(
+      { width: 6, height: 4 }, // 24 tiles => 12 pairs
+      {
+        seed: "required-pairs",
+        materialIds: ["bench", "pond", "tree"] as const,
+        requiredPairs: { bench: 3 }, // => 6 tiles
+      },
+    );
+
+    let benchCount = 0;
+    for (const row of board.grid) for (const cell of row) {
+      expect(cell).not.toBeNull();
+      if (cell === "bench") benchCount++;
+    }
+    expect(benchCount).toBe(6);
+  });
+
+  it("requiredPairs 中出现未在 materialIds 声明的素材时应抛错", () => {
+    expect(() =>
+      genBoard(
+        { width: 4, height: 2 }, // 8 tiles => 4 pairs
+        {
+          seed: "bad-required",
+          materialIds: ["pond"] as const,
+          requiredPairs: { bench: 1 },
+        },
+      ),
+    ).toThrow();
+  });
+});

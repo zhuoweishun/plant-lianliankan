@@ -5,7 +5,7 @@ import { gridCellFromClient, type GridMetrics } from "./gridHitTest.ts";
 import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap.ts";
 
 type GardenSceneOptions = {
-  onGoMatch?: () => void;
+  onGoMatch?: (levelId: import("../../data/levels.ts").LevelId) => void;
 };
 
 export class GardenScene {
@@ -44,7 +44,7 @@ export class GardenScene {
         <aside class="hud-pane">
           <h2>花园</h2>
           <div class="hud-actions">
-            <button type="button" class="btn" data-action="to-match">去配对</button>
+            <button type="button" class="btn" data-action="to-match">去配对（第1关）</button>
           </div>
           <div class="garden-mode" style="margin-top: 10px;"></div>
           <h2 style="margin-top: 12px;">背包装饰</h2>
@@ -109,7 +109,7 @@ export class GardenScene {
     const target = e.target as HTMLElement | null;
     const action = target?.getAttribute("data-action");
     if (action === "to-match") {
-      this.options.onGoMatch?.();
+      this.options.onGoMatch?.("L1");
       return;
     }
     if (action === "return-to-bag") {
