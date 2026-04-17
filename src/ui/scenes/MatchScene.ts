@@ -373,7 +373,10 @@ export class MatchScene {
         .map(
           (r) => `
             <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.22);">
-              <span>${r.name}</span>
+              <span style="display:flex; align-items:center; gap:8px;">
+                <img alt="" src="${import.meta.env.BASE_URL}ui/stickers/${r.id}.png" style="width:22px; height:22px;" />
+                ${r.name}
+              </span>
               <code>+${r.amount}</code>
             </div>
           `,
