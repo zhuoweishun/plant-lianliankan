@@ -234,9 +234,17 @@ export class MatchScene {
   };
 
   private restart(): void {
+    // Ensure level goals are actually achievable:
+    // one match => +1 material, so the board must contain at least `goal` pairs for that material.
+    // We use boardGen.requiredPairs to force those pairs when capacity allows.
+    const pairsCapacity = (this.level.size.width * this.level.size.height) / 2;
+    const requiredTotal = Object.values(this.level.goals).reduce((acc, v) => acc + (v ?? 0), 0);
+    const canForce = Number.isFinite(pairsCapacity) && requiredTotal <= pairsCapacity;
+
     this.board = genBoard(this.level.size, {
       seed: `${this.level.id}-${Date.now()}`,
       materialIds: this.level.materialIds,
+      ...(canForce ? { requiredPairs: this.level.goals } : {}),
     });
     this.inventory = new Inventory<MaterialId>();
     this.selected = null;
