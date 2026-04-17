@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SSH deploy key (DO NOT COMMIT)
+.ssh/
