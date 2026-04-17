@@ -1,5 +1,8 @@
 import { DECORATIONS, type DecorationDef, type DecorationId } from "../../data/decorations.ts";
 import { LEVELS, type LevelId } from "../../data/levels.ts";
+import { MATERIALS, getMaterialName, type MaterialId } from "../../data/materials.ts";
+import { RECIPES } from "../../data/recipes.ts";
+import { canCraftOne, craftOne } from "../../core/crafting/crafting.ts";
 import { GardenGrid } from "../../garden/GardenGrid.ts";
 import { isLevelUnlocked, loadSave, takeFromInventory, updateGarden, writeSave, type SaveData } from "../../save/save.ts";
 import { gridCellFromClient, type GridMetrics } from "./gridHitTest.ts";
@@ -14,6 +17,8 @@ export class GardenScene {
   private gridEl: HTMLDivElement | null = null;
   private listEl: HTMLDivElement | null = null;
   private levelListEl: HTMLDivElement | null = null;
+  private materialsEl: HTMLDivElement | null = null;
+  private craftingEl: HTMLDivElement | null = null;
   private modeEl: HTMLDivElement | null = null;
   private readonly options: GardenSceneOptions;
 
@@ -50,6 +55,13 @@ export class GardenScene {
           </div>
           <h2 style="margin-top: 12px;">关卡选择</h2>
           <div class="level-list" aria-label="level list"></div>
+
+          <h2 style="margin-top: 12px;">材料库存</h2>
+          <div class="materials-inv" aria-label="materials inventory"></div>
+
+          <h2 style="margin-top: 12px;">工作台合成</h2>
+          <div class="crafting-bench" aria-label="crafting bench"></div>
+
           <div class="garden-mode" style="margin-top: 10px;"></div>
           <h2 style="margin-top: 12px;">背包装饰</h2>
           <div class="garden-inv" aria-label="decorations list"></div>
@@ -63,11 +75,17 @@ export class GardenScene {
 
     const grid = this.root.querySelector<HTMLDivElement>("div.garden-grid");
     const levelList = this.root.querySelector<HTMLDivElement>("div.level-list");
+    const materials = this.root.querySelector<HTMLDivElement>("div.materials-inv");
+    const crafting = this.root.querySelector<HTMLDivElement>("div.crafting-bench");
     const list = this.root.querySelector<HTMLDivElement>("div.garden-inv");
     const mode = this.root.querySelector<HTMLDivElement>("div.garden-mode");
-    if (!grid || !levelList || !list || !mode) throw new Error("GardenScene mount failed: missing DOM nodes");
+    if (!grid || !levelList || !materials || !crafting || !list || !mode) {
+      throw new Error("GardenScene mount failed: missing DOM nodes");
+    }
     this.gridEl = grid;
     this.levelListEl = levelList;
+    this.materialsEl = materials;
+    this.craftingEl = crafting;
     this.listEl = list;
     this.modeEl = mode;
 
@@ -92,6 +110,8 @@ export class GardenScene {
     this.root = null;
     this.gridEl = null;
     this.levelListEl = null;
+    this.materialsEl = null;
+    this.craftingEl = null;
     this.listEl = null;
     this.modeEl = null;
   }
@@ -121,6 +141,12 @@ export class GardenScene {
     }
     if (action === "return-to-bag") {
       this.returnSelectedPlacementToBag();
+      return;
+    }
+    if (action === "craft") {
+      const decoId = target?.getAttribute("data-craft-deco-id") as DecorationId | null;
+      if (!decoId) return;
+      this.tryCraft(decoId);
       return;
     }
 
@@ -336,6 +362,8 @@ export class GardenScene {
   private render(): void {
     this.renderGrid();
     this.renderLevels();
+    this.renderMaterials();
+    this.renderCrafting();
     this.renderDecorations();
     this.renderMode();
   }
@@ -420,6 +448,71 @@ export class GardenScene {
 
     this.listEl.innerHTML = "";
     for (const el of items) this.listEl.appendChild(el);
+  }
+
+  private renderMaterials(): void {
+    if (!this.materialsEl) return;
+    const rows = MATERIALS.map((m) => {
+      const have = this.save.materials?.[m.id] ?? 0;
+      return `
+        <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.18);">
+          <span>${m.name}</span>
+          <code>${have}</code>
+        </div>
+      `;
+    }).join("");
+
+    this.materialsEl.innerHTML = rows || `<div style="font-size:12px; color: rgba(255,255,255,0.7);">（暂无材料）</div>`;
+  }
+
+  private renderCrafting(): void {
+    if (!this.craftingEl) return;
+
+    const html = RECIPES.map((r) => {
+      const def = DECORATIONS.find((d) => d.id === r.decorationId);
+      const name = def?.name ?? r.decorationId;
+      const can = canCraftOne(this.save.materials ?? {}, r.decorationId);
+
+      const reqLines = Object.entries(r.requires)
+        .filter(([, need]) => (need ?? 0) > 0)
+        .map(([mid, need]) => {
+          const have = this.save.materials?.[mid] ?? 0;
+          const ok = have >= (need ?? 0);
+          return `<div style="display:flex; justify-content:space-between; gap:10px; font-size:12px; color:${ok ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.65)"};">
+            <span>${getMaterialName(mid as MaterialId)}</span>
+            <code>${have}/${need}</code>
+          </div>`;
+        })
+        .join("");
+
+      return `
+        <div style="margin:8px 0; padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.22);">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <div style="font-weight:600;">${name}</div>
+            <button type="button" class="btn" data-action="craft" data-craft-deco-id="${r.decorationId}" ${can ? "" : "disabled"}>
+              合成 1 个
+            </button>
+          </div>
+          <div style="margin-top:8px; display:grid; gap:6px;">
+            ${reqLines}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    this.craftingEl.innerHTML = html || `<div style="font-size:12px; color: rgba(255,255,255,0.7);">（暂无配方）</div>`;
+  }
+
+  private tryCraft(decorationId: DecorationId): void {
+    try {
+      const out = craftOne(this.save.materials ?? {}, this.save.inventory ?? {}, decorationId);
+      const next: SaveData = { ...this.save, materials: out.materials, inventory: out.decorations };
+      this.save = next;
+      writeSave(next);
+      this.render();
+    } catch {
+      // not enough materials / unexpected
+    }
   }
 
   private renderMode(): void {
