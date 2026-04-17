@@ -8,12 +8,13 @@ import { hasAnyLinkablePair, reshuffleGrid } from "../../core/board/reshuffle.ts
 import { findAnyLinkablePair } from "../../core/board/hint.ts";
 import { getMaterialName, type MaterialId } from "../../data/materials.ts";
 import { getLevel, getNextLevelId, type LevelId } from "../../data/levels.ts";
+import { formatMaterialDelta } from "../victorySummary.ts";
 
 type Selected = Point & { materialId: MaterialId };
 
 type MatchSceneOptions = {
   levelId: LevelId;
-  onGoGarden?: (payload: { award: boolean; sessionInventory: InventoryJSON }) => void;
+  onGoGarden?: (payload: { award: boolean; sessionInventory: InventoryJSON; focusCrafting?: boolean }) => void;
   onGoNextLevel?: (payload: { nextLevelId: LevelId; sessionInventory: InventoryJSON }) => void;
 };
 
@@ -83,8 +84,10 @@ export class MatchScene {
           <p style="margin:0 0 12px; color: rgba(255,255,255,0.75); font-size: 13px;">
             本关目标已完成。点击下方按钮回花园结算。
           </p>
+          <div class="win-summary" style="margin: 10px 0 12px;"></div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button type="button" class="btn" data-action="win-to-garden">回花园结算</button>
+            <button type="button" class="btn" data-action="win-to-craft">去工作台合成</button>
             <button type="button" class="btn" data-action="next-level">下一关</button>
           </div>
         </div>
@@ -148,6 +151,9 @@ export class MatchScene {
     if (action === "reshuffle") this.tryReshuffle();
     if (action === "abandon") this.options.onGoGarden?.({ award: false, sessionInventory: {} });
     if (action === "win-to-garden") this.options.onGoGarden?.({ award: true, sessionInventory: this.inventory.toJSON() });
+    if (action === "win-to-craft") {
+      this.options.onGoGarden?.({ award: true, sessionInventory: this.inventory.toJSON(), focusCrafting: true });
+    }
     if (action === "next-level") {
       const next = getNextLevelId(this.level.id);
       if (!next) return;
@@ -346,6 +352,32 @@ export class MatchScene {
     // If this is the last level, hide "下一关" button.
     const nextBtn = this.winOverlayEl.querySelector<HTMLButtonElement>('button[data-action="next-level"]');
     if (nextBtn) nextBtn.style.display = getNextLevelId(this.level.id) ? "inline-flex" : "none";
+
+    if (show) this.renderWinSummary();
+  }
+
+  private renderWinSummary(): void {
+    if (!this.winOverlayEl) return;
+    const el = this.winOverlayEl.querySelector<HTMLDivElement>("div.win-summary");
+    if (!el) return;
+    const rows = formatMaterialDelta(this.inventory.toJSON());
+    if (rows.length === 0) {
+      el.innerHTML = `<div style="font-size:12px; color: rgba(255,255,255,0.65);">（本局没有获得材料）</div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div style="font-size:12px; color: rgba(255,255,255,0.75); margin-bottom:6px;">本局获得：</div>
+      ${rows
+        .map(
+          (r) => `
+            <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.22);">
+              <span>${r.name}</span>
+              <code>+${r.amount}</code>
+            </div>
+          `,
+        )
+        .join("")}
+    `;
   }
 
   private resizeCanvasToBoard(): void {

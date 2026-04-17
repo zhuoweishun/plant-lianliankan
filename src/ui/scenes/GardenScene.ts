@@ -10,6 +10,7 @@ import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap
 
 type GardenSceneOptions = {
   onGoMatch?: (levelId: LevelId) => void;
+  focusCrafting?: boolean;
 };
 
 export class GardenScene {
@@ -96,6 +97,7 @@ export class GardenScene {
 
     this.restoreFromSave();
     this.render();
+    if (this.options.focusCrafting) this.focusCraftingOnce();
   }
 
   unmount(): void {
@@ -513,6 +515,20 @@ export class GardenScene {
     } catch {
       // not enough materials / unexpected
     }
+  }
+
+  private focusCraftingOnce(): void {
+    const el = this.craftingEl;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    const prevOutline = el.style.outline;
+    const prevShadow = el.style.boxShadow;
+    el.style.outline = "3px solid rgba(255, 209, 102, 0.9)";
+    el.style.boxShadow = "0 0 0 6px rgba(255, 209, 102, 0.18)";
+    window.setTimeout(() => {
+      el.style.outline = prevOutline;
+      el.style.boxShadow = prevShadow;
+    }, 1200);
   }
 
   private renderMode(): void {

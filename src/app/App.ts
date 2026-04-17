@@ -39,14 +39,24 @@ class AppController {
       }),
     );
   }
+  
+  private showGardenWithFocus(focusCrafting?: boolean): void {
+    this.swap(
+      new GardenScene({
+        onGoMatch: (levelId) => this.showMatch(levelId),
+        focusCrafting,
+      }),
+    );
+  }
 
   private showMatch(levelId: LevelId): void {
     this.swap(
       new MatchScene({
         levelId,
-        onGoGarden: ({ award, sessionInventory }) => {
+        onGoGarden: ({ award, sessionInventory, focusCrafting }) => {
           if (award) this.awardAndUnlock(levelId, sessionInventory);
-          this.showGarden();
+          if (focusCrafting) this.showGardenWithFocus(true);
+          else this.showGarden();
         },
         onGoNextLevel: ({ nextLevelId, sessionInventory }) => {
           this.awardAndUnlock(levelId, sessionInventory);
