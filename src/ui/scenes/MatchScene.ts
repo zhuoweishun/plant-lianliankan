@@ -6,10 +6,8 @@ import { Inventory, type InventoryJSON } from "../../core/inventory/Inventory.ts
 import { isGoalsCompleted } from "../../core/level/goals.ts";
 import { hasAnyLinkablePair, reshuffleGrid } from "../../core/board/reshuffle.ts";
 import { findAnyLinkablePair } from "../../core/board/hint.ts";
-import { getDecoration, type DecorationId } from "../../data/decorations.ts";
+import { getMaterialName, type MaterialId } from "../../data/materials.ts";
 import { getLevel, getNextLevelId, type LevelId } from "../../data/levels.ts";
-
-type MaterialId = DecorationId;
 
 type Selected = Point & { materialId: MaterialId };
 
@@ -239,7 +237,6 @@ export class MatchScene {
     this.board = genBoard(this.level.size, {
       seed: `${this.level.id}-${Date.now()}`,
       materialIds: this.level.materialIds,
-      requiredPairs: this.level.goals,
     });
     this.inventory = new Inventory<MaterialId>();
     this.selected = null;
@@ -316,12 +313,12 @@ export class MatchScene {
     const rows = Object.entries(this.level.goals)
       .filter(([, need]) => (need ?? 0) > 0)
       .map(([id, need]) => {
-        const def = getDecoration(id as DecorationId);
+        const name = getMaterialName(id as MaterialId);
         const have = inv[id] ?? 0;
         const ok = have >= (need ?? 0);
         return `
           <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:${ok ? "rgba(6,214,160,0.10)" : "rgba(255,255,255,0.05)"};">
-            <span>${def.name}</span>
+            <span>${name}</span>
             <code>${have}/${need}</code>
           </div>
         `;
