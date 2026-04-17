@@ -1,6 +1,6 @@
 import { MatchScene } from "../ui/scenes/MatchScene.ts";
 import { GardenScene } from "../ui/scenes/GardenScene.ts";
-import { addInventoryToSave, loadSave, unlockLevel, writeSave } from "../save/save.ts";
+import { loadSave, mergeInventory, unlockLevel, writeSave } from "../save/save.ts";
 import type { LevelId } from "../data/levels.ts";
 import { getNextLevelId } from "../data/levels.ts";
 
@@ -39,14 +39,24 @@ class AppController {
       }),
     );
   }
+  
+  private showGardenWithFocus(focusCrafting?: boolean): void {
+    this.swap(
+      new GardenScene({
+        onGoMatch: (levelId) => this.showMatch(levelId),
+        focusCrafting,
+      }),
+    );
+  }
 
   private showMatch(levelId: LevelId): void {
     this.swap(
       new MatchScene({
         levelId,
-        onGoGarden: ({ award, sessionInventory }) => {
+        onGoGarden: ({ award, sessionInventory, focusCrafting }) => {
           if (award) this.awardAndUnlock(levelId, sessionInventory);
-          this.showGarden();
+          if (focusCrafting) this.showGardenWithFocus(true);
+          else this.showGarden();
         },
         onGoNextLevel: ({ nextLevelId, sessionInventory }) => {
           this.awardAndUnlock(levelId, sessionInventory);
@@ -59,7 +69,8 @@ class AppController {
   private awardAndUnlock(levelId: LevelId, sessionInventory: Record<string, number>): void {
     // Only called on victory.
     const next = getNextLevelId(levelId);
-    let save = addInventoryToSave(loadSave(), sessionInventory);
+    let save = loadSave();
+    save = { ...save, materials: mergeInventory(save.materials, sessionInventory) };
     if (next) save = unlockLevel(save, next);
     writeSave(save);
   }

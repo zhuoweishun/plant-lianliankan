@@ -1,4 +1,4 @@
-import type { DecorationId } from "./decorations.ts";
+import type { MaterialId } from "./materials.ts";
 
 export type LevelId = "L1" | "L2" | "L3" | "T1";
 
@@ -6,43 +6,44 @@ export type LevelDef = {
   id: LevelId;
   name: string;
   size: { width: number; height: number };
-  materialIds: readonly DecorationId[];
+  /**
+   * Tile ids for match board generation.
+   */
+  materialIds: readonly MaterialId[];
   /**
    * Collection goals, measured in "drops" (one match => dropForMatch => +1).
    */
-  goals: Partial<Record<DecorationId, number>>;
+  goals: Partial<Record<MaterialId, number>>;
 };
 
 export const LEVELS: readonly LevelDef[] = [
   {
     id: "L1",
-    name: "第 1 关：收集长椅",
+    name: "第 1 关：收集材料",
     size: { width: 10, height: 8 },
-    materialIds: ["bench", "pond", "tree"],
-    goals: { bench: 3 },
+    materialIds: ["wood", "stone", "water", "leaf"],
+    goals: { wood: 10 },
   },
   {
     id: "L2",
-    name: "第 2 关：收集池塘",
+    name: "第 2 关：收集材料",
     size: { width: 10, height: 8 },
-    materialIds: ["bench", "pond", "tree"],
-    goals: { pond: 3, bench: 1 },
+    materialIds: ["wood", "stone", "water", "leaf"],
+    goals: { water: 10, stone: 6 },
   },
   {
     id: "L3",
-    name: "第 3 关：收集小树",
+    name: "第 3 关：收集材料",
     size: { width: 12, height: 8 },
-    materialIds: ["bench", "pond", "tree"],
-    goals: { tree: 4, pond: 1 },
+    materialIds: ["wood", "stone", "water", "leaf"],
+    goals: { leaf: 12, wood: 6 },
   },
   {
     id: "T1",
     name: "测试关：无解压力",
     size: { width: 14, height: 10 },
-    materialIds: ["bench", "pond", "tree"],
-    // 注意：每个目标数也是该素材在棋盘上“至少需要的对子数”，总和不能超过棋盘容量（width*height/2 = 70）。
-    // 这里设置为接近满盘，用于尽可能拉长对局，便于触发“无解 → 重洗牌”。
-    goals: { bench: 23, pond: 23, tree: 23 },
+    materialIds: ["wood", "stone", "water", "leaf"],
+    goals: { wood: 60, water: 50, leaf: 50, stone: 40 },
   },
 ] as const satisfies readonly LevelDef[];
 

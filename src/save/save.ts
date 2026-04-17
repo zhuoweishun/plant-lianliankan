@@ -1,7 +1,7 @@
 import type { InventoryJSON } from "../core/inventory/Inventory.ts";
 import type { GardenGridJSON } from "../garden/GardenGrid.ts";
 
-export const SAVE_VERSION = 1 as const;
+export const SAVE_VERSION = 2 as const;
 export type SaveVersion = typeof SAVE_VERSION;
 
 export type GardenSave = GardenGridJSON<string>;
@@ -12,6 +12,13 @@ export type ProgressSave = {
 
 export type SaveData = {
   version: SaveVersion;
+  /**
+   * Materials inventory, used for crafting.
+   */
+  materials: InventoryJSON;
+  /**
+   * Decorations inventory, used for placing into the garden.
+   */
   inventory: InventoryJSON;
   garden: GardenSave;
   progress: ProgressSave;
@@ -38,6 +45,7 @@ function assertNonNegativeSafeInteger(n: number, name: string): void {
 export function defaultSave(): SaveData {
   return {
     version: SAVE_VERSION,
+    materials: {},
     inventory: {},
     garden: { width: 10, height: 6, placements: [] },
     progress: { unlockedLevelIds: ["L1"] },
@@ -118,18 +126,51 @@ export function unlockLevel(save: SaveData, levelId: string): SaveData {
 
 function normalizeSave(v: unknown): SaveData {
   if (!isPlainObject(v)) return defaultSave();
-  if (v.version !== SAVE_VERSION) return defaultSave();
+  const version = (v as Record<string, unknown>).version;
+  if (version !== 1 && version !== 2) return defaultSave();
 
-  const inventoryRaw = v.inventory;
-  const gardenRaw = v.garden;
+  const inventoryRaw = (v as Record<string, unknown>).inventory;
+  const gardenRaw = (v as Record<string, unknown>).garden;
   const progressRaw = (v as Record<string, unknown>).progress;
+  const materialsRaw = (v as Record<string, unknown>).materials;
   if (!isPlainObject(inventoryRaw) || !isPlainObject(gardenRaw)) return defaultSave();
 
-  const inventory: InventoryJSON = {};
-  for (const [k, vv] of Object.entries(inventoryRaw)) {
-    if (typeof vv !== "number") return defaultSave();
-    assertNonNegativeSafeInteger(vv, `inventory(${k})`);
-    if (vv !== 0) inventory[k] = vv;
+  const parseInventory = (raw: Record<string, unknown>, name: string): InventoryJSON | null => {
+    const out: InventoryJSON = {};
+    for (const [k, vv] of Object.entries(raw)) {
+      if (typeof vv !== "number") return null;
+      assertNonNegativeSafeInteger(vv, `${name}(${k})`);
+      if (vv !== 0) out[k] = vv;
+    }
+    return out;
+  };
+
+  const inventoryParsed = parseInventory(inventoryRaw, "inventory");
+  if (!inventoryParsed) return defaultSave();
+  let inventory = inventoryParsed;
+
+  let materials: InventoryJSON = {};
+  if (version === 2) {
+    if (isPlainObject(materialsRaw)) {
+      const m = parseInventory(materialsRaw as Record<string, unknown>, "materials");
+      if (!m) return defaultSave();
+      materials = m;
+    } else {
+      materials = {};
+    }
+  } else {
+    // v1 -> v2 migration: convert old decoration inventory into materials.
+    const bench = inventory["bench"] ?? 0;
+    const pond = inventory["pond"] ?? 0;
+    const tree = inventory["tree"] ?? 0;
+    if (bench > 0) materials["wood"] = (materials["wood"] ?? 0) + bench;
+    if (pond > 0) materials["water"] = (materials["water"] ?? 0) + pond;
+    if (tree > 0) materials["leaf"] = (materials["leaf"] ?? 0) + tree;
+
+    // Remove migrated decoration keys to fix "decoration flooding".
+    if (bench > 0) delete inventory["bench"];
+    if (pond > 0) delete inventory["pond"];
+    if (tree > 0) delete inventory["tree"];
   }
 
   const width = gardenRaw.width;
@@ -164,5 +205,5 @@ function normalizeSave(v: unknown): SaveData {
   // Always ensure L1 unlocked
   if (!progress.unlockedLevelIds.includes("L1")) progress.unlockedLevelIds.unshift("L1");
 
-  return { version: SAVE_VERSION, inventory, garden, progress };
+  return { version: SAVE_VERSION, materials, inventory, garden, progress };
 }
