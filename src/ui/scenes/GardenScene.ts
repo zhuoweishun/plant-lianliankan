@@ -2,7 +2,7 @@ import { DECORATIONS, type DecorationDef, type DecorationId } from "../../data/d
 import { GardenGrid } from "../../garden/GardenGrid.ts";
 import { loadSave, takeFromInventory, updateGarden, writeSave, type SaveData } from "../../save/save.ts";
 import { gridCellFromClient, type GridMetrics } from "./gridHitTest.ts";
-import { topLeftFromHover, type CellPoint } from "./dragSnap.ts";
+import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap.ts";
 
 type GardenSceneOptions = {
   onGoMatch?: () => void;
@@ -224,8 +224,9 @@ export class GardenScene {
 
     const topLeft = topLeftFromHover(this.hoverCell, this.grabOffset);
     if (kind === "move" && this.movingIndex !== null) {
-      const ok = this.garden.move(this.movingIndex, topLeft.x, topLeft.y);
-      if (ok) {
+      const can = this.garden.canMove(this.movingIndex, topLeft.x, topLeft.y);
+      if (can) {
+        this.garden.move(this.movingIndex, topLeft.x, topLeft.y);
         const next = updateGarden(this.save, this.garden.toJSON());
         this.save = next;
         writeSave(next);
@@ -279,8 +280,9 @@ export class GardenScene {
     // Moving an existing placement
     if (this.movingIndex !== null) {
       const topLeft = topLeftFromHover({ x, y }, this.grabOffset);
-      const ok = this.garden.move(this.movingIndex, topLeft.x, topLeft.y);
-      if (!ok) return;
+      const can = this.garden.canMove(this.movingIndex, topLeft.x, topLeft.y);
+      if (!can) return;
+      this.garden.move(this.movingIndex, topLeft.x, topLeft.y);
       const next = updateGarden(this.save, this.garden.toJSON());
       this.save = next;
       writeSave(next);
@@ -345,6 +347,12 @@ export class GardenScene {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "btn";
+        // IMPORTANT:
+        // Base cells must have fixed grid coordinates; otherwise CSS grid auto-placement
+        // will "skip" cells occupied by placed decorations and reflow remaining cells,
+        // causing the garden grid to look like it's changing shape.
+        btn.style.gridColumn = `${x + 1}`;
+        btn.style.gridRow = `${y + 1}`;
         btn.style.width = `${cellPx}px`;
         btn.style.height = `${cellPx}px`;
         btn.style.padding = "0";
@@ -469,6 +477,7 @@ export class GardenScene {
     let h = 1;
     let ok = false;
     let at: CellPoint | null = null;
+    let displayAt: CellPoint | null = null;
 
     if (this.movingIndex !== null) {
       const p = this.garden.listPlacements()[this.movingIndex];
@@ -478,6 +487,7 @@ export class GardenScene {
       h = p.h;
       at = topLeftFromHover(this.hoverCell, this.grabOffset);
       ok = this.garden.canMove(this.movingIndex, at.x, at.y);
+      displayAt = clampTopLeftToGrid(at, { w, h }, { w: this.garden.width, h: this.garden.height });
     } else if (this.selected) {
       const def = DECORATIONS.find((d) => d.id === this.selected);
       if (!def) return;
@@ -486,12 +496,13 @@ export class GardenScene {
       h = def.h;
       at = topLeftFromHover(this.hoverCell, this.grabOffset);
       ok = this.garden.canPlace(at.x, at.y, w, h);
+      displayAt = clampTopLeftToGrid(at, { w, h }, { w: this.garden.width, h: this.garden.height });
     }
 
     const ghost = document.createElement("div");
-    if (!at) return;
-    ghost.style.gridColumn = `${at.x + 1} / span ${w}`;
-    ghost.style.gridRow = `${at.y + 1} / span ${h}`;
+    if (!displayAt) return;
+    ghost.style.gridColumn = `${displayAt.x + 1} / span ${w}`;
+    ghost.style.gridRow = `${displayAt.y + 1} / span ${h}`;
     ghost.style.borderRadius = "10px";
     ghost.style.border = ok ? "2px dashed rgba(255, 209, 102, 0.95)" : "2px dashed rgba(255, 99, 132, 0.9)";
     ghost.style.background = ok ? "rgba(255, 209, 102, 0.14)" : "rgba(255, 99, 132, 0.10)";
