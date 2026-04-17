@@ -1,7 +1,8 @@
 import { MatchScene } from "../ui/scenes/MatchScene.ts";
 import { GardenScene } from "../ui/scenes/GardenScene.ts";
-import { addInventoryToSave, loadSave, writeSave } from "../save/save.ts";
+import { addInventoryToSave, loadSave, unlockLevel, writeSave } from "../save/save.ts";
 import type { LevelId } from "../data/levels.ts";
+import { getNextLevelId } from "../data/levels.ts";
 
 export function mountApp(root: HTMLElement): void {
   const app = new AppController(root);
@@ -44,13 +45,22 @@ class AppController {
       new MatchScene({
         levelId,
         onGoGarden: ({ award, sessionInventory }) => {
-          if (award) {
-            const merged = addInventoryToSave(loadSave(), sessionInventory);
-            writeSave(merged);
-          }
+          if (award) this.awardAndUnlock(levelId, sessionInventory);
           this.showGarden();
+        },
+        onGoNextLevel: ({ nextLevelId, sessionInventory }) => {
+          this.awardAndUnlock(levelId, sessionInventory);
+          this.showMatch(nextLevelId);
         },
       }),
     );
+  }
+
+  private awardAndUnlock(levelId: LevelId, sessionInventory: Record<string, number>): void {
+    // Only called on victory.
+    const next = getNextLevelId(levelId);
+    let save = addInventoryToSave(loadSave(), sessionInventory);
+    if (next) save = unlockLevel(save, next);
+    writeSave(save);
   }
 }

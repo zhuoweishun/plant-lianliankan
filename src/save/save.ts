@@ -6,10 +6,15 @@ export type SaveVersion = typeof SAVE_VERSION;
 
 export type GardenSave = GardenGridJSON<string>;
 
+export type ProgressSave = {
+  unlockedLevelIds: string[];
+};
+
 export type SaveData = {
   version: SaveVersion;
   inventory: InventoryJSON;
   garden: GardenSave;
+  progress: ProgressSave;
 };
 
 const SAVE_KEY = "plant-garden-link-match.save";
@@ -35,6 +40,7 @@ export function defaultSave(): SaveData {
     version: SAVE_VERSION,
     inventory: {},
     garden: { width: 10, height: 6, placements: [] },
+    progress: { unlockedLevelIds: ["L1"] },
   };
 }
 
@@ -95,12 +101,28 @@ export function updateGarden(save: SaveData, garden: GardenSave): SaveData {
   return { ...save, garden };
 }
 
+export function isLevelUnlocked(save: SaveData, levelId: string): boolean {
+  return (save.progress.unlockedLevelIds ?? []).includes(levelId);
+}
+
+export function unlockLevel(save: SaveData, levelId: string): SaveData {
+  if (isLevelUnlocked(save, levelId)) return save;
+  return {
+    ...save,
+    progress: {
+      ...save.progress,
+      unlockedLevelIds: [...(save.progress.unlockedLevelIds ?? []), levelId],
+    },
+  };
+}
+
 function normalizeSave(v: unknown): SaveData {
   if (!isPlainObject(v)) return defaultSave();
   if (v.version !== SAVE_VERSION) return defaultSave();
 
   const inventoryRaw = v.inventory;
   const gardenRaw = v.garden;
+  const progressRaw = (v as Record<string, unknown>).progress;
   if (!isPlainObject(inventoryRaw) || !isPlainObject(gardenRaw)) return defaultSave();
 
   const inventory: InventoryJSON = {};
@@ -130,6 +152,17 @@ function normalizeSave(v: unknown): SaveData {
       })),
   };
 
-  return { version: SAVE_VERSION, inventory, garden };
-}
+  const unlockedLevelIdsRaw =
+    isPlainObject(progressRaw) && Array.isArray((progressRaw as Record<string, unknown>).unlockedLevelIds)
+      ? ((progressRaw as Record<string, unknown>).unlockedLevelIds as unknown[])
+      : ["L1"];
 
+  const progress: ProgressSave = {
+    unlockedLevelIds: unlockedLevelIdsRaw.map((x) => String(x)),
+  };
+
+  // Always ensure L1 unlocked
+  if (!progress.unlockedLevelIds.includes("L1")) progress.unlockedLevelIds.unshift("L1");
+
+  return { version: SAVE_VERSION, inventory, garden, progress };
+}

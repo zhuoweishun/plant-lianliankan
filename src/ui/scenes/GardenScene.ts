@@ -1,17 +1,19 @@
 import { DECORATIONS, type DecorationDef, type DecorationId } from "../../data/decorations.ts";
+import { LEVELS, type LevelId } from "../../data/levels.ts";
 import { GardenGrid } from "../../garden/GardenGrid.ts";
-import { loadSave, takeFromInventory, updateGarden, writeSave, type SaveData } from "../../save/save.ts";
+import { isLevelUnlocked, loadSave, takeFromInventory, updateGarden, writeSave, type SaveData } from "../../save/save.ts";
 import { gridCellFromClient, type GridMetrics } from "./gridHitTest.ts";
 import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap.ts";
 
 type GardenSceneOptions = {
-  onGoMatch?: (levelId: import("../../data/levels.ts").LevelId) => void;
+  onGoMatch?: (levelId: LevelId) => void;
 };
 
 export class GardenScene {
   private root: HTMLElement | null = null;
   private gridEl: HTMLDivElement | null = null;
   private listEl: HTMLDivElement | null = null;
+  private levelListEl: HTMLDivElement | null = null;
   private modeEl: HTMLDivElement | null = null;
   private readonly options: GardenSceneOptions;
 
@@ -44,8 +46,10 @@ export class GardenScene {
         <aside class="hud-pane">
           <h2>花园</h2>
           <div class="hud-actions">
-            <button type="button" class="btn" data-action="to-match">去配对（第1关）</button>
+            <button type="button" class="btn" data-action="to-match">去配对（继续）</button>
           </div>
+          <h2 style="margin-top: 12px;">关卡选择</h2>
+          <div class="level-list" aria-label="level list"></div>
           <div class="garden-mode" style="margin-top: 10px;"></div>
           <h2 style="margin-top: 12px;">背包装饰</h2>
           <div class="garden-inv" aria-label="decorations list"></div>
@@ -58,10 +62,12 @@ export class GardenScene {
     `;
 
     const grid = this.root.querySelector<HTMLDivElement>("div.garden-grid");
+    const levelList = this.root.querySelector<HTMLDivElement>("div.level-list");
     const list = this.root.querySelector<HTMLDivElement>("div.garden-inv");
     const mode = this.root.querySelector<HTMLDivElement>("div.garden-mode");
-    if (!grid || !list || !mode) throw new Error("GardenScene mount failed: missing DOM nodes");
+    if (!grid || !levelList || !list || !mode) throw new Error("GardenScene mount failed: missing DOM nodes");
     this.gridEl = grid;
+    this.levelListEl = levelList;
     this.listEl = list;
     this.modeEl = mode;
 
@@ -85,6 +91,7 @@ export class GardenScene {
     this.root.innerHTML = "";
     this.root = null;
     this.gridEl = null;
+    this.levelListEl = null;
     this.listEl = null;
     this.modeEl = null;
   }
@@ -114,6 +121,12 @@ export class GardenScene {
     }
     if (action === "return-to-bag") {
       this.returnSelectedPlacementToBag();
+      return;
+    }
+
+    const lvlId = target?.getAttribute("data-level-id") as LevelId | null;
+    if (lvlId) {
+      if (lvlId === "T1" || isLevelUnlocked(this.save, lvlId)) this.options.onGoMatch?.(lvlId);
       return;
     }
 
@@ -322,6 +335,7 @@ export class GardenScene {
 
   private render(): void {
     this.renderGrid();
+    this.renderLevels();
     this.renderDecorations();
     this.renderMode();
   }
@@ -514,6 +528,35 @@ export class GardenScene {
     ghost.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
     ghost.textContent = id ? "预览" : "";
     this.gridEl.appendChild(ghost);
+  }
+
+  private renderLevels(): void {
+    if (!this.levelListEl) return;
+    const items = LEVELS.map((l) => {
+      const unlocked = l.id === "T1" ? true : isLevelUnlocked(this.save, l.id);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn";
+      btn.setAttribute("data-level-id", l.id);
+      btn.disabled = !unlocked;
+      btn.style.width = "100%";
+      btn.style.display = "flex";
+      btn.style.alignItems = "center";
+      btn.style.justifyContent = "space-between";
+      btn.style.gap = "8px";
+      btn.style.margin = "6px 0";
+      btn.style.opacity = unlocked ? "1" : "0.5";
+      const left = document.createElement("span");
+      left.textContent = `${l.id} · ${l.name}`;
+      const right = document.createElement("code");
+      right.textContent = unlocked ? "已解锁" : "未解锁";
+      btn.appendChild(left);
+      btn.appendChild(right);
+      return btn;
+    });
+
+    this.levelListEl.innerHTML = "";
+    for (const el of items) this.levelListEl.appendChild(el);
   }
 }
 

@@ -1,6 +1,6 @@
 import type { DecorationId } from "./decorations.ts";
 
-export type LevelId = "L1" | "L2" | "L3";
+export type LevelId = "L1" | "L2" | "L3" | "T1";
 
 export type LevelDef = {
   id: LevelId;
@@ -35,6 +35,15 @@ export const LEVELS: readonly LevelDef[] = [
     materialIds: ["bench", "pond", "tree"],
     goals: { tree: 4, pond: 1 },
   },
+  {
+    id: "T1",
+    name: "测试关：无解压力",
+    size: { width: 14, height: 10 },
+    materialIds: ["bench", "pond", "tree"],
+    // 注意：每个目标数也是该素材在棋盘上“至少需要的对子数”，总和不能超过棋盘容量（width*height/2 = 70）。
+    // 这里设置为接近满盘，用于尽可能拉长对局，便于触发“无解 → 重洗牌”。
+    goals: { bench: 23, pond: 23, tree: 23 },
+  },
 ] as const satisfies readonly LevelDef[];
 
 export function getLevel(id: LevelId): LevelDef {
@@ -43,3 +52,12 @@ export function getLevel(id: LevelId): LevelDef {
   return l;
 }
 
+export function getNextLevelId(id: LevelId): LevelId | null {
+  // Only mainline levels participate in "next level" progression.
+  if (id === "T1") return null;
+  const mainline: LevelId[] = ["L1", "L2", "L3"];
+  const idx = mainline.indexOf(id);
+  if (idx < 0) return null;
+  const next = mainline[idx + 1];
+  return next ?? null;
+}
