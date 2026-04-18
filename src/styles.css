@@ -213,21 +213,34 @@ code {
 
 .garden-grid {
   position: relative;
-  /* “草地地块”底：柔和渐变 + 轻微花点 */
+  /* “更像草坪”的地面：更绿更有草叶方向（仍保持低对比，避免抢贴纸） */
   background:
-    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.10) 0 1px, transparent 2px),
-    radial-gradient(circle at 72% 30%, rgba(255, 255, 255, 0.08) 0 1.2px, transparent 2.6px),
-    radial-gradient(circle at 40% 68%, rgba(255, 255, 255, 0.07) 0 1px, transparent 2.2px),
-    linear-gradient(180deg, rgba(120, 180, 120, 0.35), rgba(70, 130, 90, 0.40));
-  background-size: 220px 220px, 260px 260px, 240px 240px, auto;
-  background-repeat: repeat, repeat, repeat, no-repeat;
-  background-position: 0 0, 0 0, 0 0, center;
+    /* 阳光斑驳 */
+    radial-gradient(circle at 18% 22%, rgba(255, 245, 220, 0.20) 0 140px, transparent 320px),
+    radial-gradient(circle at 78% 36%, rgba(255, 255, 255, 0.12) 0 120px, transparent 280px),
+    /* 细草叶纹理（两层不同角度的细线） */
+    repeating-linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.06) 0 1px,
+      transparent 1px 6px
+    ),
+    repeating-linear-gradient(
+      60deg,
+      rgba(0, 0, 0, 0.05) 0 1px,
+      transparent 1px 7px
+    ),
+    /* 草地底色 */
+    linear-gradient(180deg, rgba(120, 190, 120, 0.55), rgba(70, 150, 95, 0.62));
+  background-size: auto, auto, 140px 140px, 170px 170px, auto;
+  background-repeat: no-repeat, no-repeat, repeat, repeat, no-repeat;
+  background-position: 10% 10%, 80% 20%, 0 0, 0 0, center;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   box-shadow:
     rgba(0, 0, 0, 0.22) 0 10px 18px -12px,
     rgba(0, 0, 0, 0.18) 0 2px 6px -4px,
     inset rgba(255, 255, 255, 0.10) 0 1px 0;
+  filter: saturate(1.18) contrast(1.02);
 }
 
 .garden-cell {
