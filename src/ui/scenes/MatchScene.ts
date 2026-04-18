@@ -9,6 +9,7 @@ import { findAnyLinkablePair } from "../../core/board/hint.ts";
 import { getMaterialName, type MaterialId } from "../../data/materials.ts";
 import { getLevel, getNextLevelId, type LevelId } from "../../data/levels.ts";
 import { formatMaterialDelta } from "../victorySummary.ts";
+import { getStickerImage, preloadStickers } from "../stickers.ts";
 
 type Selected = Point & { materialId: MaterialId };
 
@@ -260,6 +261,7 @@ export class MatchScene {
     this.updateHud();
     this.resizeCanvasToBoard();
     this.draw();
+    void preloadStickers(["wood", "stone", "water", "leaf"]);
   }
 
   private updateHud(): void {
@@ -371,7 +373,10 @@ export class MatchScene {
         .map(
           (r) => `
             <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.22);">
-              <span>${r.name}</span>
+              <span style="display:flex; align-items:center; gap:8px;">
+                <img alt="" src="${import.meta.env.BASE_URL}ui/stickers/${r.id}.png" style="width:22px; height:22px;" />
+                ${r.name}
+              </span>
               <code>+${r.amount}</code>
             </div>
           `,
@@ -420,18 +425,14 @@ export class MatchScene {
 
         if (v === null) {
           ctx.fillStyle = "rgba(255,255,255,0.06)";
-        } else {
-          ctx.fillStyle = colorFor(v);
+          ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
+          continue;
         }
-        ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
 
-        if (v !== null) {
-          ctx.fillStyle = "rgba(255,255,255,0.92)";
-          ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(shortLabel(v), left + s / 2, top + s / 2);
-        }
+        // Cell base (subtle) + sticker icon
+        ctx.fillStyle = "rgba(0,0,0,0.10)";
+        ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
+        drawStickerInCell(ctx, v, left, top, s);
       }
     }
 
@@ -527,16 +528,38 @@ export class MatchScene {
   }
 }
 
-function shortLabel(id: MaterialId): string {
-  const s = String(id);
-  if (s.length <= 4) return s;
-  return `${s.slice(0, 3)}…`;
+function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
 }
 
-function colorFor(id: MaterialId): string {
-  const s = String(id);
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  return `hsl(${hue} 70% 45%)`;
+function drawStickerInCell(
+  ctx: CanvasRenderingContext2D,
+  materialId: MaterialId,
+  left: number,
+  top: number,
+  size: number,
+) {
+  // Card background
+  ctx.save();
+  drawRoundedRect(ctx, left + 4, top + 4, size - 8, size - 8, 14);
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.10)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
+  const img = getStickerImage(materialId);
+  if (!img) return;
+
+  const pad = 8;
+  const iconSize = size - pad * 2;
+  ctx.drawImage(img, left + pad, top + pad, iconSize, iconSize);
 }
