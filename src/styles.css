@@ -96,3 +96,113 @@ code {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* ------------------------------------------------------------
+   Scene background + parallax layers
+   ------------------------------------------------------------ */
+
+.scene {
+  position: relative;
+  min-height: 100svh;
+  width: 100%;
+}
+
+.scene-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-layer {
+  position: absolute;
+  inset: -36px; /* 给视差留缓冲，避免露边 */
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity, background-position;
+}
+
+/* 视差变量（由 JS 写入） */
+.bg-layer.depth-1 {
+  transform: translate3d(var(--px1, 0px), var(--py1, 0px), 0);
+}
+.bg-layer.depth-2 {
+  transform: translate3d(var(--px2, 0px), var(--py2, 0px), 0);
+}
+.bg-layer.depth-3 {
+  transform: translate3d(var(--px3, 0px), var(--py3, 0px), 0);
+}
+.bg-layer.depth-4 {
+  transform: translate3d(var(--px4, 0px), var(--py4, 0px), 0);
+}
+
+@keyframes drift-x {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes float-rot {
+  0% {
+    transform: translate3d(var(--px2, 0px), var(--py2, 0px), 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(var(--px2, 0px), calc(var(--py2, 0px) - 10px), 0) rotate(2deg);
+  }
+  100% {
+    transform: translate3d(var(--px2, 0px), var(--py2, 0px), 0) rotate(0deg);
+  }
+}
+
+/* 动效降级：系统要求减少动效时关闭动画 */
+@media (prefers-reduced-motion: reduce) {
+  .bg-layer {
+    animation: none !important;
+  }
+}
+
+/* Garden particles (CSS gradients, no extra assets) */
+.scene--garden .bg-layer--particles {
+  opacity: 0.55;
+  background-repeat: repeat;
+  background-size: 520px 520px;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.30) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 30%, rgba(255, 235, 180, 0.35) 0 1.2px, transparent 2.4px),
+    radial-gradient(circle at 40% 68%, rgba(255, 255, 255, 0.22) 0 1px, transparent 2px),
+    radial-gradient(circle at 82% 78%, rgba(255, 235, 180, 0.26) 0 1.1px, transparent 2.2px),
+    radial-gradient(circle at 10% 86%, rgba(255, 255, 255, 0.18) 0 1px, transparent 2px);
+  animation: drift-x 28s linear infinite, float-rot 6.5s ease-in-out infinite;
+  filter: blur(0.2px);
+}
+
+/* Match particles (more subtle) */
+.scene--match .bg-layer--particles {
+  opacity: 0.22;
+  background-repeat: repeat;
+  background-size: 680px 680px;
+  background-image:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.22) 0 1px, transparent 2px),
+    radial-gradient(circle at 60% 44%, rgba(255, 235, 180, 0.18) 0 1px, transparent 2px),
+    radial-gradient(circle at 84% 70%, rgba(255, 255, 255, 0.14) 0 1px, transparent 2px);
+  animation: drift-x 40s linear infinite;
+  filter: blur(0.3px);
+}
+
+/* Make panes slightly more "paper/glass" so backgrounds show through */
+.board-pane,
+.hud-pane {
+  backdrop-filter: blur(6px);
+}
+
+.scene--garden .board-pane {
+  background: rgba(255, 255, 255, 0.10);
+}
+.scene--match .board-pane {
+  background: rgba(255, 255, 255, 0.08);
+}

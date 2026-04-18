@@ -8,6 +8,8 @@ import { isLevelUnlocked, loadSave, takeFromInventory, updateGarden, writeSave, 
 import { gridCellFromClient, type GridMetrics } from "./gridHitTest.ts";
 import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap.ts";
 import { stickerUrl } from "../stickers.ts";
+import { attachParallax } from "../parallax.ts";
+import { applySceneBackgrounds } from "../backgrounds.ts";
 
 type GardenSceneOptions = {
   onGoMatch?: (levelId: LevelId) => void;
@@ -16,6 +18,7 @@ type GardenSceneOptions = {
 
 export class GardenScene {
   private root: HTMLElement | null = null;
+  private detachParallax: null | (() => void) = null;
   private gridEl: HTMLDivElement | null = null;
   private listEl: HTMLDivElement | null = null;
   private levelListEl: HTMLDivElement | null = null;
@@ -46,32 +49,38 @@ export class GardenScene {
   mount(root: HTMLElement): void {
     this.root = root;
     this.root.innerHTML = `
-      <div class="app-shell">
-        <main class="board-pane">
-          <div class="garden-grid" aria-label="garden grid"></div>
-        </main>
-        <aside class="hud-pane">
-          <h2>花园</h2>
-          <div class="hud-actions">
-            <button type="button" class="btn" data-action="to-match">去配对（继续）</button>
-          </div>
-          <h2 style="margin-top: 12px;">关卡选择</h2>
-          <div class="level-list" aria-label="level list"></div>
+      <div class="scene scene--garden">
+        <div class="scene-bg" aria-hidden="true">
+          <div class="bg-layer depth-1 bg-layer--base"></div>
+          <div class="bg-layer depth-2 bg-layer--particles"></div>
+        </div>
+        <div class="app-shell">
+          <main class="board-pane">
+            <div class="garden-grid" aria-label="garden grid"></div>
+          </main>
+          <aside class="hud-pane">
+            <h2>花园</h2>
+            <div class="hud-actions">
+              <button type="button" class="btn" data-action="to-match">去配对（继续）</button>
+            </div>
+            <h2 style="margin-top: 12px;">关卡选择</h2>
+            <div class="level-list" aria-label="level list"></div>
 
-          <h2 style="margin-top: 12px;">材料库存</h2>
-          <div class="materials-inv" aria-label="materials inventory"></div>
+            <h2 style="margin-top: 12px;">材料库存</h2>
+            <div class="materials-inv" aria-label="materials inventory"></div>
 
-          <h2 style="margin-top: 12px;">工作台合成</h2>
-          <div class="crafting-bench" aria-label="crafting bench"></div>
+            <h2 style="margin-top: 12px;">工作台合成</h2>
+            <div class="crafting-bench" aria-label="crafting bench"></div>
 
-          <div class="garden-mode" style="margin-top: 10px;"></div>
-          <h2 style="margin-top: 12px;">背包装饰</h2>
-          <div class="garden-inv" aria-label="decorations list"></div>
-          <p class="hud-hint">
-            放置：先在右侧选择装饰 → 左侧出现虚拟框 → 点击格子放置（消耗 1 个）。<br />
-            移动：点击花园里已摆放的物体 → 出现虚拟框 → 点击新位置移动；也可“放回背包”。
-          </p>
-        </aside>
+            <div class="garden-mode" style="margin-top: 10px;"></div>
+            <h2 style="margin-top: 12px;">背包装饰</h2>
+            <div class="garden-inv" aria-label="decorations list"></div>
+            <p class="hud-hint">
+              放置：先在右侧选择装饰 → 左侧出现虚拟框 → 点击格子放置（消耗 1 个）。<br />
+              移动：点击花园里已摆放的物体 → 出现虚拟框 → 点击新位置移动；也可“放回背包”。
+            </p>
+          </aside>
+        </div>
       </div>
     `;
 
@@ -96,6 +105,12 @@ export class GardenScene {
     this.gridEl.addEventListener("mousemove", this.onGridMouseMove);
     this.gridEl.addEventListener("mouseleave", this.onGridMouseLeave);
 
+    const scene = this.root.querySelector<HTMLElement>("div.scene.scene--garden");
+    if (scene) {
+      applySceneBackgrounds(scene, "garden");
+      this.detachParallax = attachParallax(scene, { strengthPx: 14 });
+    }
+
     this.restoreFromSave();
     this.render();
     if (this.options.focusCrafting) this.focusCraftingOnce();
@@ -103,6 +118,8 @@ export class GardenScene {
 
   unmount(): void {
     if (!this.root) return;
+    this.detachParallax?.();
+    this.detachParallax = null;
     this.root.removeEventListener("click", this.onRootClick);
     this.root.removeEventListener("pointerdown", this.onRootPointerDown);
     this.gridEl?.removeEventListener("mousemove", this.onGridMouseMove);
@@ -382,7 +399,16 @@ export class GardenScene {
     this.gridEl.style.gridTemplateRows = `repeat(${this.garden.height}, ${cellPx}px)`;
     this.gridEl.style.gap = `${gapPx}px`;
     this.gridEl.style.padding = "10px";
-    this.gridEl.style.background = "rgba(0,0,0,0.25)";
+    // 草坪地块：用渐变模拟纸感草地（避免额外纹理资源与水印风险）
+    this.gridEl.style.background = `
+      radial-gradient(circle at 18% 22%, rgba(255,255,255,0.10) 0 1px, transparent 2px),
+      radial-gradient(circle at 72% 30%, rgba(255,255,255,0.08) 0 1.2px, transparent 2.6px),
+      radial-gradient(circle at 40% 68%, rgba(255,255,255,0.07) 0 1px, transparent 2.2px),
+      linear-gradient(180deg, rgba(120, 180, 120, 0.35), rgba(70, 130, 90, 0.40))
+    `;
+    this.gridEl.style.backgroundSize = "220px 220px, 260px 260px, 240px 240px, auto";
+    this.gridEl.style.backgroundRepeat = "repeat, repeat, repeat, no-repeat";
+    this.gridEl.style.backgroundPosition = "0 0, 0 0, 0 0, center";
     this.gridEl.style.border = "1px solid rgba(255,255,255,0.12)";
     this.gridEl.style.borderRadius = "10px";
 

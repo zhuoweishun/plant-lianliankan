@@ -10,6 +10,8 @@ import { getMaterialName, type MaterialId } from "../../data/materials.ts";
 import { getLevel, getNextLevelId, type LevelId } from "../../data/levels.ts";
 import { formatMaterialDelta } from "../victorySummary.ts";
 import { getStickerImage, preloadStickers } from "../stickers.ts";
+import { attachParallax } from "../parallax.ts";
+import { applySceneBackgrounds } from "../backgrounds.ts";
 
 type Selected = Point & { materialId: MaterialId };
 
@@ -23,6 +25,7 @@ export class MatchScene {
   private root: HTMLElement | null = null;
   private readonly options: MatchSceneOptions;
   private readonly level: ReturnType<typeof getLevel>;
+  private detachParallax: null | (() => void) = null;
 
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
@@ -52,44 +55,50 @@ export class MatchScene {
   mount(root: HTMLElement): void {
     this.root = root;
     this.root.innerHTML = `
-      <div class="app-shell">
-        <main class="board-pane">
-          <canvas class="board-canvas" aria-label="match board"></canvas>
-        </main>
-        <aside class="hud-pane">
-          <h2>${this.level.name}</h2>
-          <div class="hud-goals" aria-label="level goals"></div>
+      <div class="scene scene--match">
+        <div class="scene-bg" aria-hidden="true">
+          <div class="bg-layer depth-1 bg-layer--base"></div>
+          <div class="bg-layer depth-2 bg-layer--particles"></div>
+        </div>
+        <div class="app-shell">
+          <main class="board-pane">
+            <canvas class="board-canvas" aria-label="match board"></canvas>
+          </main>
+          <aside class="hud-pane">
+            <h2>${this.level.name}</h2>
+            <div class="hud-goals" aria-label="level goals"></div>
 
-          <h2 style="margin-top: 12px;">本局掉落（Debug JSON）</h2>
-          <pre class="hud-json" aria-label="inventory json"></pre>
+            <h2 style="margin-top: 12px;">本局掉落（Debug JSON）</h2>
+            <pre class="hud-json" aria-label="inventory json"></pre>
 
-          <div class="hud-actions">
-            <button type="button" class="btn" data-action="restart">重新开局</button>
-            <button type="button" class="btn" data-action="hint" style="margin-left: 8px;" disabled>提示</button>
-            <button type="button" class="btn" data-action="reshuffle" style="margin-left: 8px;" disabled>重洗牌</button>
-            <button type="button" class="btn" data-action="abandon" style="margin-left: 8px;">放弃回花园</button>
-          </div>
-          <div class="no-moves-hint" style="margin-top:10px; display:none; font-size:12px; color: rgba(255, 209, 102, 0.9);">
-            当前无可消对，建议点击“重洗牌”。
-          </div>
-          <p class="hud-hint">
-            目标关卡：消除一对素材＝收集该素材 +1。<br />
-            只有胜利才会结算进背包。
-          </p>
-        </aside>
-      </div>
+            <div class="hud-actions">
+              <button type="button" class="btn" data-action="restart">重新开局</button>
+              <button type="button" class="btn" data-action="hint" style="margin-left: 8px;" disabled>提示</button>
+              <button type="button" class="btn" data-action="reshuffle" style="margin-left: 8px;" disabled>重洗牌</button>
+              <button type="button" class="btn" data-action="abandon" style="margin-left: 8px;">放弃回花园</button>
+            </div>
+            <div class="no-moves-hint" style="margin-top:10px; display:none; font-size:12px; color: rgba(255, 209, 102, 0.9);">
+              当前无可消对，建议点击“重洗牌”。
+            </div>
+            <p class="hud-hint">
+              目标关卡：消除一对素材＝收集该素材 +1。<br />
+              只有胜利才会结算进背包。
+            </p>
+          </aside>
+        </div>
 
-      <div class="win-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); padding:16px;">
-        <div style="max-width:520px; margin: 10vh auto 0; background: rgba(18,26,22,0.96); border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:16px;">
-          <h2 style="margin:0 0 10px;">胜利！</h2>
-          <p style="margin:0 0 12px; color: rgba(255,255,255,0.75); font-size: 13px;">
-            本关目标已完成。点击下方按钮回花园结算。
-          </p>
-          <div class="win-summary" style="margin: 10px 0 12px;"></div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="btn" data-action="win-to-garden">回花园结算</button>
-            <button type="button" class="btn" data-action="win-to-craft">去工作台合成</button>
-            <button type="button" class="btn" data-action="next-level">下一关</button>
+        <div class="win-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); padding:16px;">
+          <div style="max-width:520px; margin: 10vh auto 0; background: rgba(18,26,22,0.96); border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:16px;">
+            <h2 style="margin:0 0 10px;">胜利！</h2>
+            <p style="margin:0 0 12px; color: rgba(255,255,255,0.75); font-size: 13px;">
+              本关目标已完成。点击下方按钮回花园结算。
+            </p>
+            <div class="win-summary" style="margin: 10px 0 12px;"></div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="btn" data-action="win-to-garden">回花园结算</button>
+              <button type="button" class="btn" data-action="win-to-craft">去工作台合成</button>
+              <button type="button" class="btn" data-action="next-level">下一关</button>
+            </div>
           </div>
         </div>
       </div>
@@ -117,6 +126,12 @@ export class MatchScene {
     if (!ctx) throw new Error("Canvas 2D context not available");
     this.ctx = ctx;
 
+    const scene = this.root.querySelector<HTMLElement>("div.scene.scene--match");
+    if (scene) {
+      applySceneBackgrounds(scene, "match");
+      this.detachParallax = attachParallax(scene, { strengthPx: 12 });
+    }
+
     this.root.addEventListener("click", this.onRootClick);
     this.canvas.addEventListener("click", this.onCanvasClick);
     window.addEventListener("resize", this.onResize);
@@ -126,6 +141,8 @@ export class MatchScene {
 
   unmount(): void {
     if (!this.root) return;
+    this.detachParallax?.();
+    this.detachParallax = null;
     this.root.removeEventListener("click", this.onRootClick);
     this.canvas?.removeEventListener("click", this.onCanvasClick);
     window.removeEventListener("resize", this.onResize);
