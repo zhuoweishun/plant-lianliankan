@@ -218,22 +218,13 @@ code {
     /* 阳光斑驳 */
     radial-gradient(circle at 18% 22%, rgba(255, 245, 220, 0.20) 0 140px, transparent 320px),
     radial-gradient(circle at 78% 36%, rgba(255, 255, 255, 0.12) 0 120px, transparent 280px),
-    /* 细草叶纹理（两层不同角度的细线） */
-    repeating-linear-gradient(
-      120deg,
-      rgba(255, 255, 255, 0.06) 0 1px,
-      transparent 1px 6px
-    ),
-    repeating-linear-gradient(
-      60deg,
-      rgba(0, 0, 0, 0.05) 0 1px,
-      transparent 1px 7px
-    ),
-    /* 草地底色 */
+    /* 真草贴图（可平铺；url 由 JS 写入 CSS 变量，兼容 BASE_URL） */
+    var(--grass-tile, none),
+    /* 草地底色（兜底） */
     linear-gradient(180deg, rgba(120, 190, 120, 0.55), rgba(70, 150, 95, 0.62));
-  background-size: auto, auto, 140px 140px, 170px 170px, auto;
-  background-repeat: no-repeat, no-repeat, repeat, repeat, no-repeat;
-  background-position: 10% 10%, 80% 20%, 0 0, 0 0, center;
+  background-size: auto, auto, 256px 256px, auto;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+  background-position: 10% 10%, 80% 20%, 0 0, center;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   box-shadow:
@@ -244,10 +235,13 @@ code {
 }
 
 .garden-cell {
+  position: relative;
+  overflow: hidden;
   appearance: none;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.10);
+  /* 地块玻璃感：让底下草纹透出来 */
+  background: rgba(255, 255, 255, 0.08);
   box-shadow:
     inset rgba(255, 255, 255, 0.14) 0 1px 0,
     inset rgba(0, 0, 0, 0.12) 0 -1px 0;
@@ -255,6 +249,20 @@ code {
     background 160ms ease,
     border-color 160ms ease,
     transform 120ms ease;
+}
+
+.garden-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  pointer-events: none;
+  /* 地块边缘：更像“草坪砖”的边缘暗角 */
+  box-shadow:
+    inset rgba(0, 0, 0, 0.12) 0 0 0 1px,
+    inset rgba(0, 0, 0, 0.14) 0 -2px 3px -2px,
+    inset rgba(255, 255, 255, 0.10) 0 1px 0;
+  opacity: 0.9;
 }
 
 .garden-cell:hover {

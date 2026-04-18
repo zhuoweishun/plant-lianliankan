@@ -10,6 +10,7 @@ import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap
 import { stickerUrl } from "../stickers.ts";
 import { attachParallax } from "../parallax.ts";
 import { applySceneBackgrounds } from "../backgrounds.ts";
+import { publicUrl } from "../publicUrl.ts";
 
 type GardenSceneOptions = {
   onGoMatch?: (levelId: LevelId) => void;
@@ -395,6 +396,8 @@ export class GardenScene {
 
     this.gridEl.innerHTML = "";
     this.gridEl.style.display = "grid";
+    // Grass texture URL via CSS var (so it works with GitHub Pages BASE_URL)
+    this.gridEl.style.setProperty("--grass-tile", `url("${publicUrl("ui/textures/grass_tile.png")}")`);
     this.gridEl.style.gridTemplateColumns = `repeat(${this.garden.width}, ${cellPx}px)`;
     this.gridEl.style.gridTemplateRows = `repeat(${this.garden.height}, ${cellPx}px)`;
     this.gridEl.style.gap = `${gapPx}px`;
