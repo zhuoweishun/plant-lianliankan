@@ -253,6 +253,42 @@ code {
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.20));
 }
 
+/* A) 土边（俯视地表语义）：左右出现淡淡的土/草切边阴影，不是“立面栅栏” */
+.garden-grid.border-dirt::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  pointer-events: none;
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, rgba(120, 86, 56, 0.28), transparent 26px) left,
+    linear-gradient(270deg, rgba(120, 86, 56, 0.28), transparent 26px) right,
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08), transparent 18px) top,
+    linear-gradient(0deg, rgba(0, 0, 0, 0.06), transparent 18px) bottom;
+  background-repeat: no-repeat;
+  background-size: 26px 100%, 26px 100%, 100% 18px, 100% 18px;
+  opacity: 0.95;
+  mix-blend-mode: multiply;
+}
+
+/* B) 角件（更“游戏 UI”）：四角有角件 + 内沿阴影，左右不画长边 */
+.garden-grid.border-corners::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 8% 10%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px),
+    radial-gradient(circle at 92% 10%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px),
+    radial-gradient(circle at 8% 90%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px),
+    radial-gradient(circle at 92% 90%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px);
+  box-shadow:
+    inset rgba(0, 0, 0, 0.16) 0 0 0 1px,
+    inset rgba(0, 0, 0, 0.12) 0 -10px 18px -16px;
+  opacity: 0.70;
+}
+
 .scene--garden .board-pane {
   /* 让花园更“在场景里”，弱化外层 UI 卡片感 */
   background: transparent;
