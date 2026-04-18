@@ -396,8 +396,6 @@ export class GardenScene {
 
     this.gridEl.innerHTML = "";
     this.gridEl.style.display = "grid";
-    // Grass texture URL via CSS var (so it works with GitHub Pages BASE_URL)
-    this.gridEl.style.setProperty("--grass-tile", `url("${publicUrl("ui/textures/grass_tile.png")}")`);
     this.gridEl.style.gridTemplateColumns = `repeat(${this.garden.width}, ${cellPx}px)`;
     this.gridEl.style.gridTemplateRows = `repeat(${this.garden.height}, ${cellPx}px)`;
     this.gridEl.style.gap = `${gapPx}px`;
@@ -418,6 +416,8 @@ export class GardenScene {
         btn.style.width = `${cellPx}px`;
         btn.style.height = `${cellPx}px`;
         btn.style.padding = "0";
+        const variant = pickGrassVariant(x, y, 6);
+        btn.style.setProperty("--grass-cell", `url("${publicUrl(`ui/tiles/grass/grass-${variant}.png`)}")`);
         btn.style.cursor = this.selected || this.movingIndex !== null ? "pointer" : "default";
         btn.textContent = "";
         this.gridEl.appendChild(btn);
@@ -689,6 +689,14 @@ export class GardenScene {
     this.levelListEl.innerHTML = "";
     for (const el of items) this.levelListEl.appendChild(el);
   }
+}
+
+function pickGrassVariant(x: number, y: number, count: number): number {
+  // Deterministic hash by coordinates (stable across renders, supports future expansion)
+  let h = (x * 73856093) ^ (y * 19349663);
+  h = h | 0;
+  const idx = Math.abs(h) % count;
+  return idx + 1; // 1..count
 }
 
 function renderDecorationButton(def: DecorationDef, count: number, selected: boolean, disabled: boolean): HTMLElement {
