@@ -400,6 +400,8 @@ export class GardenScene {
     this.gridEl.style.setProperty("--garden-ground", `url("${publicUrl("ui/backgrounds/garden/ground.png")}")`);
     // 围栏仅上下：通过 CSS 变量注入以兼容 BASE_URL
     this.gridEl.style.setProperty("--fence-h", `url("${publicUrl("ui/decor/fence-h.svg")}")`);
+    // 左右围栏：俯视栏杆（拉伸到 100% 高度，避免拼接缝，透视更一致）
+    this.gridEl.style.setProperty("--fence-v", `url("${publicUrl("ui/decor/fence-v-top.svg")}")`);
     this.gridEl.style.gridTemplateColumns = `repeat(${this.garden.width}, ${cellPx}px)`;
     this.gridEl.style.gridTemplateRows = `repeat(${this.garden.height}, ${cellPx}px)`;
     // 默认不显示格子分界线；放置/移动模式再显示 gap 帮助对齐
