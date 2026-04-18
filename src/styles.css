@@ -206,3 +206,63 @@ code {
 .scene--match .board-pane {
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* ------------------------------------------------------------
+   Garden grid visuals (make it feel like lawn tiles)
+   ------------------------------------------------------------ */
+
+.garden-grid {
+  position: relative;
+  /* “草地地块”底：柔和渐变 + 轻微花点 */
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.10) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 30%, rgba(255, 255, 255, 0.08) 0 1.2px, transparent 2.6px),
+    radial-gradient(circle at 40% 68%, rgba(255, 255, 255, 0.07) 0 1px, transparent 2.2px),
+    linear-gradient(180deg, rgba(120, 180, 120, 0.35), rgba(70, 130, 90, 0.40));
+  background-size: 220px 220px, 260px 260px, 240px 240px, auto;
+  background-repeat: repeat, repeat, repeat, no-repeat;
+  background-position: 0 0, 0 0, 0 0, center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow:
+    rgba(0, 0, 0, 0.22) 0 10px 18px -12px,
+    rgba(0, 0, 0, 0.18) 0 2px 6px -4px,
+    inset rgba(255, 255, 255, 0.10) 0 1px 0;
+}
+
+.garden-cell {
+  appearance: none;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset rgba(255, 255, 255, 0.14) 0 1px 0,
+    inset rgba(0, 0, 0, 0.12) 0 -1px 0;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 120ms ease;
+}
+
+.garden-cell:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.garden-placement {
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  box-shadow:
+    rgba(0, 0, 0, 0.28) 0 10px 16px -12px,
+    rgba(0, 0, 0, 0.16) 0 2px 6px -5px,
+    inset rgba(255, 255, 255, 0.14) 0 1px 0;
+  transition: transform 120ms ease, box-shadow 160ms ease;
+}
+
+.garden-placement:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    rgba(0, 0, 0, 0.30) 0 12px 18px -12px,
+    rgba(0, 0, 0, 0.18) 0 3px 8px -6px,
+    inset rgba(255, 255, 255, 0.16) 0 1px 0;
+}

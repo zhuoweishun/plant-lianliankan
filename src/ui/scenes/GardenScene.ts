@@ -399,25 +399,13 @@ export class GardenScene {
     this.gridEl.style.gridTemplateRows = `repeat(${this.garden.height}, ${cellPx}px)`;
     this.gridEl.style.gap = `${gapPx}px`;
     this.gridEl.style.padding = "10px";
-    // 草坪地块：用渐变模拟纸感草地（避免额外纹理资源与水印风险）
-    this.gridEl.style.background = `
-      radial-gradient(circle at 18% 22%, rgba(255,255,255,0.10) 0 1px, transparent 2px),
-      radial-gradient(circle at 72% 30%, rgba(255,255,255,0.08) 0 1.2px, transparent 2.6px),
-      radial-gradient(circle at 40% 68%, rgba(255,255,255,0.07) 0 1px, transparent 2.2px),
-      linear-gradient(180deg, rgba(120, 180, 120, 0.35), rgba(70, 130, 90, 0.40))
-    `;
-    this.gridEl.style.backgroundSize = "220px 220px, 260px 260px, 240px 240px, auto";
-    this.gridEl.style.backgroundRepeat = "repeat, repeat, repeat, no-repeat";
-    this.gridEl.style.backgroundPosition = "0 0, 0 0, 0 0, center";
-    this.gridEl.style.border = "1px solid rgba(255,255,255,0.12)";
-    this.gridEl.style.borderRadius = "10px";
 
     // Base cells
     for (let y = 0; y < this.garden.height; y++) {
       for (let x = 0; x < this.garden.width; x++) {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "btn";
+        btn.className = "garden-cell";
         // IMPORTANT:
         // Base cells must have fixed grid coordinates; otherwise CSS grid auto-placement
         // will "skip" cells occupied by placed decorations and reflow remaining cells,
@@ -427,9 +415,6 @@ export class GardenScene {
         btn.style.width = `${cellPx}px`;
         btn.style.height = `${cellPx}px`;
         btn.style.padding = "0";
-        btn.style.borderRadius = "8px";
-        btn.style.background = "rgba(255,255,255,0.06)";
-        btn.style.borderColor = "rgba(255,255,255,0.14)";
         btn.style.cursor = this.selected || this.movingIndex !== null ? "pointer" : "default";
         btn.textContent = "";
         this.gridEl.appendChild(btn);
@@ -443,14 +428,12 @@ export class GardenScene {
       const def = DECORATIONS.find((d) => d.id === (p.id as DecorationId));
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "btn";
+      card.className = "garden-placement";
       card.setAttribute("data-placement-index", String(i));
       card.style.gridColumn = `${p.x + 1} / span ${p.w}`;
       card.style.gridRow = `${p.y + 1} / span ${p.h}`;
       card.style.display = "grid";
       card.style.placeItems = "center";
-      card.style.borderRadius = "10px";
-      card.style.border = "1px solid rgba(0,0,0,0.2)";
       card.style.background = def?.color ?? "rgba(255,255,255,0.18)";
       card.style.color = "rgba(0,0,0,0.75)";
       card.style.fontSize = "12px";
