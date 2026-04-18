@@ -396,8 +396,8 @@ export class GardenScene {
 
     this.gridEl.innerHTML = "";
     this.gridEl.style.display = "grid";
-    // 连续草地底贴图：通过 CSS 变量注入，兼容 GitHub Pages BASE_URL
-    this.gridEl.style.setProperty("--grass-tile", `url("${publicUrl("ui/textures/grass_tile.png")}")`);
+    // 连续草地底图：用非平铺插画草（cover）避免“纹理感”，并可适配未来扩张
+    this.gridEl.style.setProperty("--garden-ground", `url("${publicUrl("ui/backgrounds/garden/ground.png")}")`);
     this.gridEl.style.gridTemplateColumns = `repeat(${this.garden.width}, ${cellPx}px)`;
     this.gridEl.style.gridTemplateRows = `repeat(${this.garden.height}, ${cellPx}px)`;
     // 默认不显示格子分界线；放置/移动模式再显示 gap 帮助对齐

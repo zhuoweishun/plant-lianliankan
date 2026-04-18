@@ -221,13 +221,13 @@ code {
     /* 大尺度水彩块面（打破平铺重复感） */
     radial-gradient(circle at 22% 78%, rgba(255, 255, 255, 0.08) 0 220px, transparent 520px),
     radial-gradient(circle at 82% 72%, rgba(0, 0, 0, 0.06) 0 240px, transparent 560px),
-    /* 连续草地底（无分界线）：可平铺插画草 */
-    var(--grass-tile, none),
+    /* 连续草地底（无分界线）：非平铺插画草（cover，扩张也能用） */
+    var(--garden-ground, none),
     /* 草地底色（兜底） */
     linear-gradient(180deg, rgba(120, 190, 120, 0.55), rgba(70, 150, 95, 0.62));
-  background-size: auto, auto, auto, auto, 520px 520px, auto;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
-  background-position: 10% 10%, 80% 20%, 22% 78%, 82% 72%, -40px -80px, center;
+  background-size: auto, auto, auto, auto, cover, auto;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-position: 10% 10%, 80% 20%, 22% 78%, 82% 72%, center, center;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   box-shadow:
