@@ -428,7 +428,8 @@ export class MatchScene {
     const h = this.canvas.clientHeight;
 
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#0b1020";
+    // 棋盘底色：从深色改为更偏纸感的浅色半透明，让桌面背景能“透出来一点”
+    ctx.fillStyle = "rgba(255, 248, 235, 0.16)";
     ctx.fillRect(0, 0, w, h);
 
     const pad = this.paddingCssPx;
@@ -441,7 +442,8 @@ export class MatchScene {
         const v = this.board.get(x, y);
 
         if (v === null) {
-          ctx.fillStyle = "rgba(255,255,255,0.06)";
+          // 空格：在浅底上用更柔和的浅阴影，避免“发白一片”
+          ctx.fillStyle = "rgba(0,0,0,0.06)";
           ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
           continue;
         }
@@ -453,7 +455,7 @@ export class MatchScene {
       }
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 0; x <= this.board.width; x++) {
