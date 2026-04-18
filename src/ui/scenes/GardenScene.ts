@@ -26,7 +26,6 @@ export class GardenScene {
   private materialsEl: HTMLDivElement | null = null;
   private craftingEl: HTMLDivElement | null = null;
   private modeEl: HTMLDivElement | null = null;
-  private borderStyle: "dirt" | "corners" = "dirt";
   private readonly options: GardenSceneOptions;
 
   // Placing from inventory
@@ -50,7 +49,6 @@ export class GardenScene {
 
   mount(root: HTMLElement): void {
     this.root = root;
-    this.borderStyle = readBorderStyle();
     this.root.innerHTML = `
       <div class="scene scene--garden">
         <div class="scene-bg" aria-hidden="true">
@@ -65,10 +63,6 @@ export class GardenScene {
             <h2>花园</h2>
             <div class="hud-actions">
               <button type="button" class="btn" data-action="to-match">去配对（继续）</button>
-              <div style="margin-top: 8px; display:flex; gap:8px; flex-wrap:wrap;">
-                <button type="button" class="btn" data-action="border-dirt">边界：土边</button>
-                <button type="button" class="btn" data-action="border-corners">边界：角件</button>
-              </div>
             </div>
             <h2 style="margin-top: 12px;">关卡选择</h2>
             <div class="level-list" aria-label="level list"></div>
@@ -164,12 +158,6 @@ export class GardenScene {
     const action = target?.getAttribute("data-action");
     if (action === "to-match") {
       this.options.onGoMatch?.("L1");
-      return;
-    }
-    if (action === "border-dirt" || action === "border-corners") {
-      this.borderStyle = action === "border-dirt" ? "dirt" : "corners";
-      writeBorderStyle(this.borderStyle);
-      this.renderGrid();
       return;
     }
     if (action === "return-to-bag") {
@@ -420,14 +408,8 @@ export class GardenScene {
     this.gridEl.style.gap = showGrid ? `${gapPx}px` : "0px";
     this.gridEl.style.padding = "10px";
 
-    // 边界风格（更像游戏的处理：不是“贴条”，而是地表语义：土边/角件）
-    this.gridEl.classList.toggle("border-dirt", this.borderStyle === "dirt");
-    this.gridEl.classList.toggle("border-corners", this.borderStyle === "corners");
-    const btnDirt = this.root?.querySelector<HTMLButtonElement>('button[data-action="border-dirt"]');
-    const btnCorners = this.root?.querySelector<HTMLButtonElement>('button[data-action="border-corners"]');
-    if (btnDirt) btnDirt.style.background = this.borderStyle === "dirt" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)";
-    if (btnCorners)
-      btnCorners.style.background = this.borderStyle === "corners" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)";
+    // 边界风格：只保留“土边”（更像地表切边，避免 UI 花活导致更丑）
+    this.gridEl.classList.add("border-dirt");
 
     // Base cells
     for (let y = 0; y < this.garden.height; y++) {
@@ -714,24 +696,6 @@ export class GardenScene {
 
     this.levelListEl.innerHTML = "";
     for (const el of items) this.levelListEl.appendChild(el);
-  }
-}
-
-function readBorderStyle(): "dirt" | "corners" {
-  try {
-    const v = localStorage.getItem("gardenBorderStyle");
-    if (v === "dirt" || v === "corners") return v;
-  } catch {
-    // ignore
-  }
-  return "dirt";
-}
-
-function writeBorderStyle(v: "dirt" | "corners"): void {
-  try {
-    localStorage.setItem("gardenBorderStyle", v);
-  } catch {
-    // ignore
   }
 }
 

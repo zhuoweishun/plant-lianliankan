@@ -261,33 +261,46 @@ code {
   pointer-events: none;
   border-radius: 10px;
   background:
-    linear-gradient(90deg, rgba(120, 86, 56, 0.28), transparent 26px) left,
-    linear-gradient(270deg, rgba(120, 86, 56, 0.28), transparent 26px) right,
-    linear-gradient(180deg, rgba(0, 0, 0, 0.08), transparent 18px) top,
-    linear-gradient(0deg, rgba(0, 0, 0, 0.06), transparent 18px) bottom;
+    /* 左侧土边（带一点不规则“草皮切边”斑驳） */
+    linear-gradient(90deg, rgba(120, 86, 56, 0.46), rgba(120, 86, 56, 0.18) 24px, transparent 44px),
+    radial-gradient(circle at 18px 22px, rgba(120, 86, 56, 0.22) 0 14px, transparent 32px),
+    radial-gradient(circle at 18px 86px, rgba(120, 86, 56, 0.18) 0 12px, transparent 30px),
+    radial-gradient(circle at 18px 150px, rgba(120, 86, 56, 0.20) 0 13px, transparent 32px),
+    /* 右侧土边 */
+    linear-gradient(270deg, rgba(120, 86, 56, 0.46), rgba(120, 86, 56, 0.18) 24px, transparent 44px),
+    radial-gradient(circle at calc(100% - 18px) 38px, rgba(120, 86, 56, 0.22) 0 14px, transparent 32px),
+    radial-gradient(circle at calc(100% - 18px) 112px, rgba(120, 86, 56, 0.18) 0 12px, transparent 30px),
+    radial-gradient(circle at calc(100% - 18px) 176px, rgba(120, 86, 56, 0.20) 0 13px, transparent 32px),
+    /* 上下轻微内阴影（让地块“嵌入草地”） */
+    linear-gradient(180deg, rgba(0, 0, 0, 0.10), transparent 18px),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.08), transparent 18px);
   background-repeat: no-repeat;
-  background-size: 26px 100%, 26px 100%, 100% 18px, 100% 18px;
-  opacity: 0.95;
-  mix-blend-mode: multiply;
+  background-size:
+    44px 100%,
+    44px 220px,
+    44px 220px,
+    44px 220px,
+    44px 100%,
+    44px 220px,
+    44px 220px,
+    44px 220px,
+    100% 18px,
+    100% 18px;
+  background-position:
+    left center,
+    left 0,
+    left 64px,
+    left 128px,
+    right center,
+    right 0,
+    right 74px,
+    right 148px,
+    top,
+    bottom;
+  opacity: 0.86;
+  filter: blur(0.2px);
 }
 
-/* B) 角件（更“游戏 UI”）：四角有角件 + 内沿阴影，左右不画长边 */
-.garden-grid.border-corners::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: 12px;
-  background:
-    radial-gradient(circle at 8% 10%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px),
-    radial-gradient(circle at 92% 10%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px),
-    radial-gradient(circle at 8% 90%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px),
-    radial-gradient(circle at 92% 90%, rgba(255, 255, 255, 0.70) 0 18px, rgba(0, 0, 0, 0.10) 20px, transparent 40px);
-  box-shadow:
-    inset rgba(0, 0, 0, 0.16) 0 0 0 1px,
-    inset rgba(0, 0, 0, 0.12) 0 -10px 18px -16px;
-  opacity: 0.70;
-}
 
 .scene--garden .board-pane {
   /* 让花园更“在场景里”，弱化外层 UI 卡片感 */
