@@ -7,6 +7,10 @@ import { GardenGrid } from "../../garden/GardenGrid.ts";
 import { isLevelUnlocked, loadSave, takeFromInventory, updateGarden, writeSave, type SaveData } from "../../save/save.ts";
 import { gridCellFromClient, type GridMetrics } from "./gridHitTest.ts";
 import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap.ts";
+import { stickerUrl } from "../stickers.ts";
+import { attachParallax } from "../parallax.ts";
+import { applySceneBackgrounds } from "../backgrounds.ts";
+import { publicUrl } from "../publicUrl.ts";
 
 type GardenSceneOptions = {
   onGoMatch?: (levelId: LevelId) => void;
@@ -15,6 +19,7 @@ type GardenSceneOptions = {
 
 export class GardenScene {
   private root: HTMLElement | null = null;
+  private detachParallax: null | (() => void) = null;
   private gridEl: HTMLDivElement | null = null;
   private listEl: HTMLDivElement | null = null;
   private levelListEl: HTMLDivElement | null = null;
@@ -45,32 +50,38 @@ export class GardenScene {
   mount(root: HTMLElement): void {
     this.root = root;
     this.root.innerHTML = `
-      <div class="app-shell">
-        <main class="board-pane">
-          <div class="garden-grid" aria-label="garden grid"></div>
-        </main>
-        <aside class="hud-pane">
-          <h2>花园</h2>
-          <div class="hud-actions">
-            <button type="button" class="btn" data-action="to-match">去配对（继续）</button>
-          </div>
-          <h2 style="margin-top: 12px;">关卡选择</h2>
-          <div class="level-list" aria-label="level list"></div>
+      <div class="scene scene--garden">
+        <div class="scene-bg" aria-hidden="true">
+          <div class="bg-layer depth-1 bg-layer--base"></div>
+          <div class="bg-layer depth-2 bg-layer--particles"></div>
+        </div>
+        <div class="app-shell">
+          <main class="board-pane">
+            <div class="garden-grid" aria-label="garden grid"></div>
+          </main>
+          <aside class="hud-pane">
+            <h2>花园</h2>
+            <div class="hud-actions">
+              <button type="button" class="btn" data-action="to-match">去配对（继续）</button>
+            </div>
+            <h2 style="margin-top: 12px;">关卡选择</h2>
+            <div class="level-list" aria-label="level list"></div>
 
-          <h2 style="margin-top: 12px;">材料库存</h2>
-          <div class="materials-inv" aria-label="materials inventory"></div>
+            <h2 style="margin-top: 12px;">材料库存</h2>
+            <div class="materials-inv" aria-label="materials inventory"></div>
 
-          <h2 style="margin-top: 12px;">工作台合成</h2>
-          <div class="crafting-bench" aria-label="crafting bench"></div>
+            <h2 style="margin-top: 12px;">工作台合成</h2>
+            <div class="crafting-bench" aria-label="crafting bench"></div>
 
-          <div class="garden-mode" style="margin-top: 10px;"></div>
-          <h2 style="margin-top: 12px;">背包装饰</h2>
-          <div class="garden-inv" aria-label="decorations list"></div>
-          <p class="hud-hint">
-            放置：先在右侧选择装饰 → 左侧出现虚拟框 → 点击格子放置（消耗 1 个）。<br />
-            移动：点击花园里已摆放的物体 → 出现虚拟框 → 点击新位置移动；也可“放回背包”。
-          </p>
-        </aside>
+            <div class="garden-mode" style="margin-top: 10px;"></div>
+            <h2 style="margin-top: 12px;">背包装饰</h2>
+            <div class="garden-inv" aria-label="decorations list"></div>
+            <p class="hud-hint">
+              放置：先在右侧选择装饰 → 左侧出现虚拟框 → 点击格子放置（消耗 1 个）。<br />
+              移动：点击花园里已摆放的物体 → 出现虚拟框 → 点击新位置移动；也可“放回背包”。
+            </p>
+          </aside>
+        </div>
       </div>
     `;
 
@@ -95,6 +106,12 @@ export class GardenScene {
     this.gridEl.addEventListener("mousemove", this.onGridMouseMove);
     this.gridEl.addEventListener("mouseleave", this.onGridMouseLeave);
 
+    const scene = this.root.querySelector<HTMLElement>("div.scene.scene--garden");
+    if (scene) {
+      applySceneBackgrounds(scene, "garden");
+      this.detachParallax = attachParallax(scene, { strengthPx: 14 });
+    }
+
     this.restoreFromSave();
     this.render();
     if (this.options.focusCrafting) this.focusCraftingOnce();
@@ -102,6 +119,8 @@ export class GardenScene {
 
   unmount(): void {
     if (!this.root) return;
+    this.detachParallax?.();
+    this.detachParallax = null;
     this.root.removeEventListener("click", this.onRootClick);
     this.root.removeEventListener("pointerdown", this.onRootPointerDown);
     this.gridEl?.removeEventListener("mousemove", this.onGridMouseMove);
@@ -377,20 +396,27 @@ export class GardenScene {
 
     this.gridEl.innerHTML = "";
     this.gridEl.style.display = "grid";
+    // 连续草地底图：用非平铺插画草（cover）避免“纹理感”，并可适配未来扩张
+    this.gridEl.style.setProperty("--garden-ground", `url("${publicUrl("ui/backgrounds/garden/ground.png")}")`);
+    // 围栏仅上下：通过 CSS 变量注入以兼容 BASE_URL
+    this.gridEl.style.setProperty("--fence-h", `url("${publicUrl("ui/decor/fence-h.svg")}")`);
     this.gridEl.style.gridTemplateColumns = `repeat(${this.garden.width}, ${cellPx}px)`;
     this.gridEl.style.gridTemplateRows = `repeat(${this.garden.height}, ${cellPx}px)`;
-    this.gridEl.style.gap = `${gapPx}px`;
+    // 默认不显示格子分界线；放置/移动模式再显示 gap 帮助对齐
+    const showGrid = this.selected !== null || this.movingIndex !== null;
+    this.gridEl.classList.toggle("garden-grid--show-grid", showGrid);
+    this.gridEl.style.gap = showGrid ? `${gapPx}px` : "0px";
     this.gridEl.style.padding = "10px";
-    this.gridEl.style.background = "rgba(0,0,0,0.25)";
-    this.gridEl.style.border = "1px solid rgba(255,255,255,0.12)";
-    this.gridEl.style.borderRadius = "10px";
+
+    // 边界风格：只保留“土边”（更像地表切边，避免 UI 花活导致更丑）
+    this.gridEl.classList.add("border-dirt");
 
     // Base cells
     for (let y = 0; y < this.garden.height; y++) {
       for (let x = 0; x < this.garden.width; x++) {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "btn";
+        btn.className = "garden-cell";
         // IMPORTANT:
         // Base cells must have fixed grid coordinates; otherwise CSS grid auto-placement
         // will "skip" cells occupied by placed decorations and reflow remaining cells,
@@ -400,9 +426,6 @@ export class GardenScene {
         btn.style.width = `${cellPx}px`;
         btn.style.height = `${cellPx}px`;
         btn.style.padding = "0";
-        btn.style.borderRadius = "8px";
-        btn.style.background = "rgba(255,255,255,0.06)";
-        btn.style.borderColor = "rgba(255,255,255,0.14)";
         btn.style.cursor = this.selected || this.movingIndex !== null ? "pointer" : "default";
         btn.textContent = "";
         this.gridEl.appendChild(btn);
@@ -416,14 +439,12 @@ export class GardenScene {
       const def = DECORATIONS.find((d) => d.id === (p.id as DecorationId));
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "btn";
+      card.className = "garden-placement";
       card.setAttribute("data-placement-index", String(i));
       card.style.gridColumn = `${p.x + 1} / span ${p.w}`;
       card.style.gridRow = `${p.y + 1} / span ${p.h}`;
       card.style.display = "grid";
       card.style.placeItems = "center";
-      card.style.borderRadius = "10px";
-      card.style.border = "1px solid rgba(0,0,0,0.2)";
       card.style.background = def?.color ?? "rgba(255,255,255,0.18)";
       card.style.color = "rgba(0,0,0,0.75)";
       card.style.fontSize = "12px";
@@ -458,7 +479,10 @@ export class GardenScene {
       const have = this.save.materials?.[m.id] ?? 0;
       return `
         <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.18);">
-          <span>${m.name}</span>
+          <span style="display:flex; align-items:center; gap:8px;">
+            <img alt="" src="${stickerUrl(m.id)}" style="width:22px; height:22px;" />
+            ${m.name}
+          </span>
           <code>${have}</code>
         </div>
       `;
@@ -481,7 +505,10 @@ export class GardenScene {
           const have = this.save.materials?.[mid] ?? 0;
           const ok = have >= (need ?? 0);
           return `<div style="display:flex; justify-content:space-between; gap:10px; font-size:12px; color:${ok ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.65)"};">
-            <span>${getMaterialName(mid as MaterialId)}</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+              <img alt="" src="${stickerUrl(mid as MaterialId)}" style="width:18px; height:18px;" />
+              ${getMaterialName(mid as MaterialId)}
+            </span>
             <code>${have}/${need}</code>
           </div>`;
         })
@@ -490,7 +517,10 @@ export class GardenScene {
       return `
         <div style="margin:8px 0; padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.22);">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-            <div style="font-weight:600;">${name}</div>
+            <div style="font-weight:600; display:flex; align-items:center; gap:8px;">
+              <img alt="" src="${stickerUrl(r.decorationId)}" style="width:22px; height:22px;" />
+              ${name}
+            </div>
             <button type="button" class="btn" data-action="craft" data-craft-deco-id="${r.decorationId}" ${can ? "" : "disabled"}>
               合成 1 个
             </button>
@@ -687,7 +717,18 @@ function renderDecorationButton(def: DecorationDef, count: number, selected: boo
   btn.style.opacity = disabled ? "0.55" : "1";
 
   const left = document.createElement("span");
-  left.textContent = `${def.name}（${def.w}×${def.h}）`;
+  left.style.display = "flex";
+  left.style.alignItems = "center";
+  left.style.gap = "8px";
+  const icon = document.createElement("img");
+  icon.alt = "";
+  icon.src = stickerUrl(def.id);
+  icon.style.width = "20px";
+  icon.style.height = "20px";
+  const text = document.createElement("span");
+  text.textContent = `${def.name}（${def.w}×${def.h}）`;
+  left.appendChild(icon);
+  left.appendChild(text);
   const right = document.createElement("code");
   right.textContent = String(count);
 

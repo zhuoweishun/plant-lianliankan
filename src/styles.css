@@ -96,3 +96,271 @@ code {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* ------------------------------------------------------------
+   Scene background + parallax layers
+   ------------------------------------------------------------ */
+
+.scene {
+  position: relative;
+  min-height: 100svh;
+  width: 100%;
+}
+
+.scene-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-layer {
+  position: absolute;
+  inset: -36px; /* 给视差留缓冲，避免露边 */
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity, background-position;
+}
+
+/* 视差变量（由 JS 写入） */
+.bg-layer.depth-1 {
+  transform: translate3d(var(--px1, 0px), var(--py1, 0px), 0);
+}
+.bg-layer.depth-2 {
+  transform: translate3d(var(--px2, 0px), var(--py2, 0px), 0);
+}
+.bg-layer.depth-3 {
+  transform: translate3d(var(--px3, 0px), var(--py3, 0px), 0);
+}
+.bg-layer.depth-4 {
+  transform: translate3d(var(--px4, 0px), var(--py4, 0px), 0);
+}
+
+@keyframes drift-x {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes float-rot {
+  0% {
+    transform: translate3d(var(--px2, 0px), var(--py2, 0px), 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(var(--px2, 0px), calc(var(--py2, 0px) - 10px), 0) rotate(2deg);
+  }
+  100% {
+    transform: translate3d(var(--px2, 0px), var(--py2, 0px), 0) rotate(0deg);
+  }
+}
+
+/* 动效降级：系统要求减少动效时关闭动画 */
+@media (prefers-reduced-motion: reduce) {
+  .bg-layer {
+    animation: none !important;
+  }
+}
+
+/* Garden particles (CSS gradients, no extra assets) */
+.scene--garden .bg-layer--particles {
+  opacity: 0.55;
+  background-repeat: repeat;
+  background-size: 520px 520px;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.30) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 30%, rgba(255, 235, 180, 0.35) 0 1.2px, transparent 2.4px),
+    radial-gradient(circle at 40% 68%, rgba(255, 255, 255, 0.22) 0 1px, transparent 2px),
+    radial-gradient(circle at 82% 78%, rgba(255, 235, 180, 0.26) 0 1.1px, transparent 2.2px),
+    radial-gradient(circle at 10% 86%, rgba(255, 255, 255, 0.18) 0 1px, transparent 2px);
+  animation: drift-x 28s linear infinite, float-rot 6.5s ease-in-out infinite;
+  filter: blur(0.2px);
+}
+
+/* Match particles (more subtle) */
+.scene--match .bg-layer--particles {
+  opacity: 0.22;
+  background-repeat: repeat;
+  background-size: 680px 680px;
+  background-image:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.22) 0 1px, transparent 2px),
+    radial-gradient(circle at 60% 44%, rgba(255, 235, 180, 0.18) 0 1px, transparent 2px),
+    radial-gradient(circle at 84% 70%, rgba(255, 255, 255, 0.14) 0 1px, transparent 2px);
+  animation: drift-x 40s linear infinite;
+  filter: blur(0.3px);
+}
+
+/* Make panes slightly more "paper/glass" so backgrounds show through */
+.board-pane,
+.hud-pane {
+  backdrop-filter: blur(6px);
+}
+
+.scene--garden .board-pane {
+  background: rgba(255, 255, 255, 0.10);
+}
+.scene--match .board-pane {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ------------------------------------------------------------
+   Garden grid visuals (make it feel like lawn tiles)
+   ------------------------------------------------------------ */
+
+.garden-grid {
+  position: relative;
+  /* “更像草坪”的地面：更绿更有草叶方向（仍保持低对比，避免抢贴纸） */
+  background:
+    /* 阳光斑驳 */
+    radial-gradient(circle at 18% 22%, rgba(255, 245, 220, 0.20) 0 140px, transparent 320px),
+    radial-gradient(circle at 78% 36%, rgba(255, 255, 255, 0.12) 0 120px, transparent 280px),
+    /* 大尺度水彩块面（打破平铺重复感） */
+    radial-gradient(circle at 22% 78%, rgba(255, 255, 255, 0.08) 0 220px, transparent 520px),
+    radial-gradient(circle at 82% 72%, rgba(0, 0, 0, 0.06) 0 240px, transparent 560px),
+    /* 连续草地底（无分界线）：非平铺插画草（cover，扩张也能用） */
+    var(--garden-ground, none),
+    /* 草地底色（兜底） */
+    linear-gradient(180deg, rgba(120, 190, 120, 0.55), rgba(70, 150, 95, 0.62));
+  background-size: auto, auto, auto, auto, cover, auto;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-position: 10% 10%, 80% 20%, 22% 78%, 82% 72%, center, center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow:
+    rgba(0, 0, 0, 0.22) 0 10px 18px -12px,
+    rgba(0, 0, 0, 0.18) 0 2px 6px -4px,
+    inset rgba(255, 255, 255, 0.10) 0 1px 0;
+  filter: saturate(1.18) contrast(1.02);
+}
+
+/* 围栏（仅上下）：保留“花园边界”的语义，但不做左右立面，避免视角违和 */
+.garden-grid::after {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  pointer-events: none;
+  border-radius: 16px;
+  /* 先回退到：仅上下栅栏（左右方案后续重做） */
+  background-image: var(--fence-h, none), var(--fence-h, none);
+  background-repeat: repeat-x, repeat-x;
+  background-size: 200px 48px, 200px 48px;
+  background-position: left top, left bottom;
+  opacity: 0.92;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.20));
+}
+
+/* A) 土边（俯视地表语义）：左右出现淡淡的土/草切边阴影，不是“立面栅栏” */
+.garden-grid.border-dirt::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  pointer-events: none;
+  border-radius: 10px;
+  background:
+    /* 左侧土边（带一点不规则“草皮切边”斑驳） */
+    linear-gradient(90deg, rgba(120, 86, 56, 0.46), rgba(120, 86, 56, 0.18) 24px, transparent 44px),
+    radial-gradient(circle at 18px 22px, rgba(120, 86, 56, 0.22) 0 14px, transparent 32px),
+    radial-gradient(circle at 18px 86px, rgba(120, 86, 56, 0.18) 0 12px, transparent 30px),
+    radial-gradient(circle at 18px 150px, rgba(120, 86, 56, 0.20) 0 13px, transparent 32px),
+    /* 右侧土边 */
+    linear-gradient(270deg, rgba(120, 86, 56, 0.46), rgba(120, 86, 56, 0.18) 24px, transparent 44px),
+    radial-gradient(circle at calc(100% - 18px) 38px, rgba(120, 86, 56, 0.22) 0 14px, transparent 32px),
+    radial-gradient(circle at calc(100% - 18px) 112px, rgba(120, 86, 56, 0.18) 0 12px, transparent 30px),
+    radial-gradient(circle at calc(100% - 18px) 176px, rgba(120, 86, 56, 0.20) 0 13px, transparent 32px),
+    /* 上下轻微内阴影（让地块“嵌入草地”） */
+    linear-gradient(180deg, rgba(0, 0, 0, 0.10), transparent 18px),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.08), transparent 18px);
+  background-repeat: no-repeat;
+  background-size:
+    44px 100%,
+    44px 220px,
+    44px 220px,
+    44px 220px,
+    44px 100%,
+    44px 220px,
+    44px 220px,
+    44px 220px,
+    100% 18px,
+    100% 18px;
+  background-position:
+    left center,
+    left 0,
+    left 64px,
+    left 128px,
+    right center,
+    right 0,
+    right 74px,
+    right 148px,
+    top,
+    bottom;
+  opacity: 0.86;
+  filter: blur(0.2px);
+}
+
+
+.scene--garden .board-pane {
+  /* 让花园更“在场景里”，弱化外层 UI 卡片感 */
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.garden-cell {
+  position: relative;
+  overflow: hidden;
+  appearance: none;
+  border-radius: 8px;
+  border: none;
+  background: transparent; /* 默认不显示格子分界 */
+  box-shadow: none;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 120ms ease;
+}
+
+.garden-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  pointer-events: none;
+  /* 默认不显示边缘；只保留极淡高光防止完全糊成一片 */
+  box-shadow: inset rgba(255, 255, 255, 0.06) 0 1px 0;
+  opacity: 0.25;
+}
+
+.garden-cell:hover {
+  /* 只有 hover 才提示格子边界 */
+  background: rgba(255, 255, 255, 0.10);
+  outline: 1px solid rgba(255, 255, 255, 0.22);
+  outline-offset: -1px;
+}
+
+.garden-grid--show-grid .garden-cell {
+  /* 放置/移动模式：显示更明确的地块边界，帮助对齐 */
+  background: rgba(255, 255, 255, 0.08);
+  outline: 1px solid rgba(255, 255, 255, 0.18);
+  outline-offset: -1px;
+}
+
+.garden-placement {
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  box-shadow:
+    rgba(0, 0, 0, 0.28) 0 10px 16px -12px,
+    rgba(0, 0, 0, 0.16) 0 2px 6px -5px,
+    inset rgba(255, 255, 255, 0.14) 0 1px 0;
+  transition: transform 120ms ease, box-shadow 160ms ease;
+}
+
+.garden-placement:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    rgba(0, 0, 0, 0.30) 0 12px 18px -12px,
+    rgba(0, 0, 0, 0.18) 0 3px 8px -6px,
+    inset rgba(255, 255, 255, 0.16) 0 1px 0;
+}
