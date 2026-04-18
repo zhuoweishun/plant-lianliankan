@@ -7,6 +7,7 @@ import { GardenGrid } from "../../garden/GardenGrid.ts";
 import { isLevelUnlocked, loadSave, takeFromInventory, updateGarden, writeSave, type SaveData } from "../../save/save.ts";
 import { gridCellFromClient, type GridMetrics } from "./gridHitTest.ts";
 import { clampTopLeftToGrid, topLeftFromHover, type CellPoint } from "./dragSnap.ts";
+import { stickerUrl } from "../stickers.ts";
 
 type GardenSceneOptions = {
   onGoMatch?: (levelId: LevelId) => void;
@@ -458,7 +459,10 @@ export class GardenScene {
       const have = this.save.materials?.[m.id] ?? 0;
       return `
         <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.18);">
-          <span>${m.name}</span>
+          <span style="display:flex; align-items:center; gap:8px;">
+            <img alt="" src="${stickerUrl(m.id)}" style="width:22px; height:22px;" />
+            ${m.name}
+          </span>
           <code>${have}</code>
         </div>
       `;
@@ -481,7 +485,10 @@ export class GardenScene {
           const have = this.save.materials?.[mid] ?? 0;
           const ok = have >= (need ?? 0);
           return `<div style="display:flex; justify-content:space-between; gap:10px; font-size:12px; color:${ok ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.65)"};">
-            <span>${getMaterialName(mid as MaterialId)}</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+              <img alt="" src="${stickerUrl(mid as MaterialId)}" style="width:18px; height:18px;" />
+              ${getMaterialName(mid as MaterialId)}
+            </span>
             <code>${have}/${need}</code>
           </div>`;
         })
@@ -490,7 +497,10 @@ export class GardenScene {
       return `
         <div style="margin:8px 0; padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.22);">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-            <div style="font-weight:600;">${name}</div>
+            <div style="font-weight:600; display:flex; align-items:center; gap:8px;">
+              <img alt="" src="${stickerUrl(r.decorationId)}" style="width:22px; height:22px;" />
+              ${name}
+            </div>
             <button type="button" class="btn" data-action="craft" data-craft-deco-id="${r.decorationId}" ${can ? "" : "disabled"}>
               合成 1 个
             </button>
@@ -687,7 +697,18 @@ function renderDecorationButton(def: DecorationDef, count: number, selected: boo
   btn.style.opacity = disabled ? "0.55" : "1";
 
   const left = document.createElement("span");
-  left.textContent = `${def.name}（${def.w}×${def.h}）`;
+  left.style.display = "flex";
+  left.style.alignItems = "center";
+  left.style.gap = "8px";
+  const icon = document.createElement("img");
+  icon.alt = "";
+  icon.src = stickerUrl(def.id);
+  icon.style.width = "20px";
+  icon.style.height = "20px";
+  const text = document.createElement("span");
+  text.textContent = `${def.name}（${def.w}×${def.h}）`;
+  left.appendChild(icon);
+  left.appendChild(text);
   const right = document.createElement("code");
   right.textContent = String(count);
 
