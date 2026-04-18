@@ -221,11 +221,13 @@ code {
     /* 大尺度水彩块面（打破平铺重复感） */
     radial-gradient(circle at 22% 78%, rgba(255, 255, 255, 0.08) 0 220px, transparent 520px),
     radial-gradient(circle at 82% 72%, rgba(0, 0, 0, 0.06) 0 240px, transparent 560px),
+    /* 连续草地底（无分界线）：可平铺插画草 */
+    var(--grass-tile, none),
     /* 草地底色（兜底） */
     linear-gradient(180deg, rgba(120, 190, 120, 0.55), rgba(70, 150, 95, 0.62));
-  background-size: auto, auto, auto, auto, auto;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-  background-position: 10% 10%, 80% 20%, 22% 78%, 82% 72%, center;
+  background-size: auto, auto, auto, auto, 520px 520px, auto;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
+  background-position: 10% 10%, 80% 20%, 22% 78%, 82% 72%, -40px -80px, center;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   box-shadow:
@@ -241,9 +243,8 @@ code {
   appearance: none;
   border-radius: 8px;
   border: none;
-  background: var(--grass-cell, none) center / contain no-repeat;
-  box-shadow:
-    rgba(0, 0, 0, 0.18) 0 8px 14px -10px;
+  background: transparent; /* 默认不显示格子分界 */
+  box-shadow: none;
   transition:
     background 160ms ease,
     border-color 160ms ease,
@@ -256,14 +257,23 @@ code {
   inset: 0;
   border-radius: 8px;
   pointer-events: none;
-  /* 轻微纸感高光，避免“贴纸过硬” */
-  box-shadow: inset rgba(255, 255, 255, 0.10) 0 1px 0;
-  opacity: 0.55;
+  /* 默认不显示边缘；只保留极淡高光防止完全糊成一片 */
+  box-shadow: inset rgba(255, 255, 255, 0.06) 0 1px 0;
+  opacity: 0.25;
 }
 
 .garden-cell:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.24);
+  /* 只有 hover 才提示格子边界 */
+  background: rgba(255, 255, 255, 0.10);
+  outline: 1px solid rgba(255, 255, 255, 0.22);
+  outline-offset: -1px;
+}
+
+.garden-grid--show-grid .garden-cell {
+  /* 放置/移动模式：显示更明确的地块边界，帮助对齐 */
+  background: rgba(255, 255, 255, 0.08);
+  outline: 1px solid rgba(255, 255, 255, 0.18);
+  outline-offset: -1px;
 }
 
 .garden-placement {
