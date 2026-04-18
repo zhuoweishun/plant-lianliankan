@@ -1,3 +1,5 @@
+import { publicUrl } from "./publicUrl.ts";
+
 export type StickerId = "wood" | "stone" | "water" | "leaf" | "bench" | "pond" | "tree";
 
 const cache = new Map<StickerId, HTMLImageElement>();
@@ -6,7 +8,7 @@ const cache = new Map<StickerId, HTMLImageElement>();
  * Public 资源路径。必须使用 BASE_URL 来兼容 GitHub Pages 的 base=./ 配置。
  */
 export function stickerUrl(id: StickerId): string {
-  return `${import.meta.env.BASE_URL}ui/stickers/${id}.png`;
+  return publicUrl(`ui/stickers/${id}.png`);
 }
 
 export function getStickerImage(id: StickerId): HTMLImageElement | undefined {
@@ -32,4 +34,3 @@ export function preloadStickers(ids: readonly StickerId[]): Promise<void> {
   );
   return Promise.all(tasks).then(() => undefined);
 }
-
