@@ -244,10 +244,11 @@ code {
   inset: -18px;
   pointer-events: none;
   border-radius: 16px;
-  background-image: var(--fence-h, none), var(--fence-h, none), var(--fence-v, none), var(--fence-v, none);
-  background-repeat: repeat-x, repeat-x, no-repeat, no-repeat;
-  background-size: 200px 48px, 200px 48px, 48px 100%, 48px 100%;
-  background-position: left top, left bottom, left top, right top;
+  /* 先回退到：仅上下栅栏（左右方案后续重做） */
+  background-image: var(--fence-h, none), var(--fence-h, none);
+  background-repeat: repeat-x, repeat-x;
+  background-size: 200px 48px, 200px 48px;
+  background-position: left top, left bottom;
   opacity: 0.92;
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.20));
 }
