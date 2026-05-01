@@ -76,6 +76,12 @@ code {
   margin-top: 10px;
 }
 
+.level-list {
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
 .btn {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.2);

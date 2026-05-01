@@ -157,7 +157,7 @@ export class GardenScene {
     const target = e.target as HTMLElement | null;
     const action = target?.getAttribute("data-action");
     if (action === "to-match") {
-      this.options.onGoMatch?.("L1");
+      this.options.onGoMatch?.(this.getRecommendedLevelId());
       return;
     }
     if (action === "return-to-bag") {
@@ -671,8 +671,10 @@ export class GardenScene {
 
   private renderLevels(): void {
     if (!this.levelListEl) return;
+    const recommendedLevelId = this.getRecommendedLevelId();
     const items = LEVELS.map((l) => {
       const unlocked = l.id === "T1" ? true : isLevelUnlocked(this.save, l.id);
+      const recommended = l.id === recommendedLevelId;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn";
@@ -685,10 +687,12 @@ export class GardenScene {
       btn.style.gap = "8px";
       btn.style.margin = "6px 0";
       btn.style.opacity = unlocked ? "1" : "0.5";
+      btn.style.borderColor = recommended ? "rgba(255,209,102,0.9)" : "rgba(255,255,255,0.2)";
+      btn.style.background = recommended ? "rgba(255, 209, 102, 0.16)" : "rgba(255, 255, 255, 0.08)";
       const left = document.createElement("span");
       left.textContent = `${l.id} · ${l.name}`;
       const right = document.createElement("code");
-      right.textContent = unlocked ? "已解锁" : "未解锁";
+      right.textContent = recommended ? "继续挑战" : unlocked ? "已解锁" : "未解锁";
       btn.appendChild(left);
       btn.appendChild(right);
       return btn;
@@ -696,6 +700,12 @@ export class GardenScene {
 
     this.levelListEl.innerHTML = "";
     for (const el of items) this.levelListEl.appendChild(el);
+  }
+
+  private getRecommendedLevelId(): LevelId {
+    const mainline = LEVELS.filter((l) => l.kind === "main");
+    const unlocked = mainline.filter((l) => isLevelUnlocked(this.save, l.id));
+    return unlocked[unlocked.length - 1]?.id ?? "L1";
   }
 }
 
