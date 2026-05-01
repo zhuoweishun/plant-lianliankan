@@ -1,13 +1,13 @@
-import { genBoard } from "../../core/board/boardGen.ts";
-import type { Board } from "../../core/board/Board.ts";
-import { canLink, findLinkPath, type Point } from "../../core/board/linkPath.ts";
-import { dropForMatch } from "../../core/drops/dropTable.ts";
+import { findLinkPath, type Point } from "../../core/board/linkPath.ts";
 import { Inventory, type InventoryJSON } from "../../core/inventory/Inventory.ts";
 import { isGoalsCompleted } from "../../core/level/goals.ts";
-import { hasAnyLinkablePair, reshuffleGrid } from "../../core/board/reshuffle.ts";
-import { findAnyLinkablePair } from "../../core/board/hint.ts";
-import { getMaterialName, type MaterialId } from "../../data/materials.ts";
+import { makeEngine } from "../../core/match/engine.ts";
+import type { Engine } from "../../core/match/types.ts";
 import { getLevel, getNextLevelId, type LevelId } from "../../data/levels.ts";
+import { getMaterialName, type MaterialId } from "../../data/materials.ts";
+import { applySceneBackgrounds } from "../backgrounds.ts";
+import { attachParallax } from "../parallax.ts";
+import { getStickerImage, preloadStickers, stickerUrl } from "../stickers.ts";
 import { formatMaterialDelta } from "../victorySummary.ts";
 
 type Selected = Point & { materialId: MaterialId };
@@ -22,6 +22,7 @@ export class MatchScene {
   private root: HTMLElement | null = null;
   private readonly options: MatchSceneOptions;
   private readonly level: ReturnType<typeof getLevel>;
+  private detachParallax: null | (() => void) = null;
 
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
@@ -32,15 +33,14 @@ export class MatchScene {
   private hintBtn: HTMLButtonElement | null = null;
   private noMovesHintEl: HTMLDivElement | null = null;
 
-  private board: Board<MaterialId> | null = null;
+  private engine: Engine | null = null;
   private inventory = new Inventory<MaterialId>();
   private selected: Selected | null = null;
   private state: "playing" | "won" = "playing";
   private hintPair: { a: Point; b: Point; start: number; until: number; path: Point[] } | null = null;
+  private shiftHintUntil = 0;
 
-  // Visual config
   private readonly cellSizeCssPx = 56;
-  // Make room for the classic "outside corridor" path rendering.
   private readonly paddingCssPx = 32;
 
   constructor(options: MatchSceneOptions) {
@@ -51,44 +51,50 @@ export class MatchScene {
   mount(root: HTMLElement): void {
     this.root = root;
     this.root.innerHTML = `
-      <div class="app-shell">
-        <main class="board-pane">
-          <canvas class="board-canvas" aria-label="match board"></canvas>
-        </main>
-        <aside class="hud-pane">
-          <h2>${this.level.name}</h2>
-          <div class="hud-goals" aria-label="level goals"></div>
+      <div class="scene scene--match">
+        <div class="scene-bg" aria-hidden="true">
+          <div class="bg-layer depth-1 bg-layer--base"></div>
+          <div class="bg-layer depth-2 bg-layer--particles"></div>
+        </div>
+        <div class="app-shell">
+          <main class="board-pane">
+            <canvas class="board-canvas" aria-label="match board"></canvas>
+          </main>
+          <aside class="hud-pane">
+            <h2>${this.level.name}</h2>
+            <div class="hud-goals" aria-label="level goals"></div>
 
-          <h2 style="margin-top: 12px;">本局掉落（Debug JSON）</h2>
-          <pre class="hud-json" aria-label="inventory json"></pre>
+            <h2 style="margin-top: 12px;">本局掉落（Debug JSON）</h2>
+            <pre class="hud-json" aria-label="inventory json"></pre>
 
-          <div class="hud-actions">
-            <button type="button" class="btn" data-action="restart">重新开局</button>
-            <button type="button" class="btn" data-action="hint" style="margin-left: 8px;" disabled>提示</button>
-            <button type="button" class="btn" data-action="reshuffle" style="margin-left: 8px;" disabled>重洗牌</button>
-            <button type="button" class="btn" data-action="abandon" style="margin-left: 8px;">放弃回花园</button>
-          </div>
-          <div class="no-moves-hint" style="margin-top:10px; display:none; font-size:12px; color: rgba(255, 209, 102, 0.9);">
-            当前无可消对，建议点击“重洗牌”。
-          </div>
-          <p class="hud-hint">
-            目标关卡：消除一对素材＝收集该素材 +1。<br />
-            只有胜利才会结算进背包。
-          </p>
-        </aside>
-      </div>
+            <div class="hud-actions">
+              <button type="button" class="btn" data-action="restart">重新开局</button>
+              <button type="button" class="btn" data-action="hint" style="margin-left: 8px;" disabled>提示</button>
+              <button type="button" class="btn" data-action="reshuffle" style="margin-left: 8px;" disabled>重洗牌</button>
+              <button type="button" class="btn" data-action="abandon" style="margin-left: 8px;">放弃回花园</button>
+            </div>
+            <div class="no-moves-hint" style="margin-top:10px; display:none; font-size:12px; color: rgba(255, 209, 102, 0.9);">
+              当前无可消对，建议点击“重洗牌”。
+            </div>
+            <p class="hud-hint">
+              目标关卡：消除一对素材＝收集该素材 +1。<br />
+              只有胜利才会结算进背包。${this.level.notes ? `<br />机制：${this.level.notes}` : ""}
+            </p>
+          </aside>
+        </div>
 
-      <div class="win-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); padding:16px;">
-        <div style="max-width:520px; margin: 10vh auto 0; background: rgba(18,26,22,0.96); border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:16px;">
-          <h2 style="margin:0 0 10px;">胜利！</h2>
-          <p style="margin:0 0 12px; color: rgba(255,255,255,0.75); font-size: 13px;">
-            本关目标已完成。点击下方按钮回花园结算。
-          </p>
-          <div class="win-summary" style="margin: 10px 0 12px;"></div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="btn" data-action="win-to-garden">回花园结算</button>
-            <button type="button" class="btn" data-action="win-to-craft">去工作台合成</button>
-            <button type="button" class="btn" data-action="next-level">下一关</button>
+        <div class="win-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); padding:16px;">
+          <div style="max-width:520px; margin: 10vh auto 0; background: rgba(18,26,22,0.96); border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:16px;">
+            <h2 style="margin:0 0 10px;">胜利！</h2>
+            <p style="margin:0 0 12px; color: rgba(255,255,255,0.75); font-size: 13px;">
+              本关目标已完成。点击下方按钮回花园结算。
+            </p>
+            <div class="win-summary" style="margin: 10px 0 12px;"></div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="btn" data-action="win-to-garden">回花园结算</button>
+              <button type="button" class="btn" data-action="win-to-craft">去工作台合成</button>
+              <button type="button" class="btn" data-action="next-level">下一关</button>
+            </div>
           </div>
         </div>
       </div>
@@ -116,6 +122,12 @@ export class MatchScene {
     if (!ctx) throw new Error("Canvas 2D context not available");
     this.ctx = ctx;
 
+    const scene = this.root.querySelector<HTMLElement>("div.scene.scene--match");
+    if (scene) {
+      applySceneBackgrounds(scene, "match");
+      this.detachParallax = attachParallax(scene, { strengthPx: 12 });
+    }
+
     this.root.addEventListener("click", this.onRootClick);
     this.canvas.addEventListener("click", this.onCanvasClick);
     window.addEventListener("resize", this.onResize);
@@ -125,6 +137,8 @@ export class MatchScene {
 
   unmount(): void {
     if (!this.root) return;
+    this.detachParallax?.();
+    this.detachParallax = null;
     this.root.removeEventListener("click", this.onRootClick);
     this.canvas?.removeEventListener("click", this.onCanvasClick);
     window.removeEventListener("resize", this.onResize);
@@ -138,7 +152,7 @@ export class MatchScene {
     this.reshuffleBtn = null;
     this.hintBtn = null;
     this.noMovesHintEl = null;
-    this.board = null;
+    this.engine = null;
     this.selected = null;
     this.hintPair = null;
   }
@@ -168,7 +182,7 @@ export class MatchScene {
 
   private readonly onCanvasClick = (e: MouseEvent): void => {
     if (this.state !== "playing") return;
-    if (!this.board || !this.canvas) return;
+    if (!this.engine || !this.canvas) return;
 
     const rect = this.canvas.getBoundingClientRect();
     const xCss = e.clientX - rect.left;
@@ -176,9 +190,16 @@ export class MatchScene {
 
     const x = Math.floor((xCss - this.paddingCssPx) / this.cellSizeCssPx);
     const y = Math.floor((yCss - this.paddingCssPx) / this.cellSizeCssPx);
-    if (x < 0 || y < 0 || x >= this.board.width || y >= this.board.height) return;
+    if (x < 0 || y < 0 || x >= this.level.size.width || y >= this.level.size.height) return;
 
-    const materialId = this.board.get(x, y);
+    if (this.engine.isBlocked(x, y) || this.engine.isGate(x, y)) {
+      this.selected = null;
+      this.hintPair = null;
+      this.draw();
+      return;
+    }
+
+    const materialId = this.engine.getTileId(x, y);
     if (materialId === null) {
       this.selected = null;
       this.hintPair = null;
@@ -204,7 +225,6 @@ export class MatchScene {
 
     const a = this.selected;
     const b = picked;
-
     if (a.materialId !== b.materialId) {
       this.selected = picked;
       this.hintPair = null;
@@ -212,22 +232,22 @@ export class MatchScene {
       return;
     }
 
-    const linkable = canLink(this.board.grid, a, b);
-    if (!linkable) {
+    const result = this.engine.tryMatch(a, b);
+    if (!result.matched) {
       this.selected = picked;
       this.hintPair = null;
       this.draw();
       return;
     }
 
-    // Success: remove tiles + drop rewards
-    this.board.grid[a.y]![a.x] = null;
-    this.board.grid[b.y]![b.x] = null;
     this.selected = null;
     this.hintPair = null;
 
-    for (const drop of dropForMatch(a.materialId)) {
-      this.inventory.add(drop.materialId, drop.amount);
+    for (const drop of result.drops) {
+      this.inventory.add(drop, 1);
+    }
+    if (this.level.shift) {
+      this.shiftHintUntil = Date.now() + 700;
     }
     this.updateHud();
 
@@ -240,26 +260,17 @@ export class MatchScene {
   };
 
   private restart(): void {
-    // Ensure level goals are actually achievable:
-    // one match => +1 material, so the board must contain at least `goal` pairs for that material.
-    // We use boardGen.requiredPairs to force those pairs when capacity allows.
-    const pairsCapacity = (this.level.size.width * this.level.size.height) / 2;
-    const requiredTotal = Object.values(this.level.goals).reduce((acc, v) => acc + (v ?? 0), 0);
-    const canForce = Number.isFinite(pairsCapacity) && requiredTotal <= pairsCapacity;
-
-    this.board = genBoard(this.level.size, {
-      seed: `${this.level.id}-${Date.now()}`,
-      materialIds: this.level.materialIds,
-      ...(canForce ? { requiredPairs: this.level.goals } : {}),
-    });
+    this.engine = makeEngine(this.level, { seed: `${this.level.id}-${Date.now()}` });
     this.inventory = new Inventory<MaterialId>();
     this.selected = null;
     this.hintPair = null;
+    this.shiftHintUntil = 0;
     this.state = "playing";
     this.showWinOverlay(false);
     this.updateHud();
     this.resizeCanvasToBoard();
     this.draw();
+    void preloadStickers(["wood", "stone", "water", "leaf"]);
   }
 
   private updateHud(): void {
@@ -270,28 +281,26 @@ export class MatchScene {
   }
 
   private updateNoMovesUi(): void {
-    if (!this.board || !this.reshuffleBtn || !this.hintBtn || !this.noMovesHintEl) return;
+    if (!this.engine || !this.reshuffleBtn || !this.hintBtn || !this.noMovesHintEl) return;
     if (this.state !== "playing") {
       this.reshuffleBtn.disabled = true;
       this.hintBtn.disabled = true;
       this.noMovesHintEl.style.display = "none";
       return;
     }
-    const noMoves = !hasAnyLinkablePair(this.board.grid);
-    // Keep enabled even when there are moves (useful for testing, and avoids "I clicked nothing happened" confusion).
+    const noMoves = !this.engine.hasAnyMove();
     this.reshuffleBtn.disabled = false;
     this.hintBtn.disabled = noMoves;
     this.noMovesHintEl.style.display = noMoves ? "block" : "none";
   }
 
   private showHint(): void {
-    if (!this.board) return;
-    if (this.state !== "playing") return;
-    const pair = findAnyLinkablePair(this.board.grid);
+    if (!this.engine || this.state !== "playing") return;
+    const pair = this.engine.findHintPair();
     if (!pair) return;
     const start = Date.now();
     const until = start + 1500;
-    const path = findLinkPath(this.board.grid, pair.a, pair.b) ?? [pair.a, pair.b];
+    const path = findLinkPath(this.engine.buildLinkGrid(), pair.a, pair.b) ?? [pair.a, pair.b];
     this.hintPair = { a: pair.a, b: pair.b, start, until, path };
 
     const tick = () => {
@@ -310,11 +319,9 @@ export class MatchScene {
   }
 
   private tryReshuffle(): void {
-    if (!this.board) return;
-    if (this.state !== "playing") return;
-    const out = reshuffleGrid(this.board.grid, { seed: `${this.level.id}-${Date.now()}`, maxTries: 300 });
-    if (!out) return;
-    this.board.grid.splice(0, this.board.grid.length, ...out);
+    if (!this.engine || this.state !== "playing") return;
+    const ok = this.engine.reshuffle(`${this.level.id}-${Date.now()}`);
+    if (!ok) return;
     this.selected = null;
     this.hintPair = null;
     this.updateHud();
@@ -348,11 +355,8 @@ export class MatchScene {
   private showWinOverlay(show: boolean): void {
     if (!this.winOverlayEl) return;
     this.winOverlayEl.style.display = show ? "block" : "none";
-
-    // If this is the last level, hide "下一关" button.
     const nextBtn = this.winOverlayEl.querySelector<HTMLButtonElement>('button[data-action="next-level"]');
     if (nextBtn) nextBtn.style.display = getNextLevelId(this.level.id) ? "inline-flex" : "none";
-
     if (show) this.renderWinSummary();
   }
 
@@ -371,7 +375,10 @@ export class MatchScene {
         .map(
           (r) => `
             <div style="display:flex; justify-content:space-between; gap:10px; margin:6px 0; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.22);">
-              <span>${r.name}</span>
+              <span style="display:flex; align-items:center; gap:8px;">
+                <img alt="" src="${stickerUrl(r.id)}" style="width:22px; height:22px;" />
+                ${r.name}
+              </span>
               <code>+${r.amount}</code>
             </div>
           `,
@@ -381,10 +388,9 @@ export class MatchScene {
   }
 
   private resizeCanvasToBoard(): void {
-    if (!this.canvas || !this.board) return;
-
-    const cssW = this.paddingCssPx * 2 + this.board.width * this.cellSizeCssPx;
-    const cssH = this.paddingCssPx * 2 + this.board.height * this.cellSizeCssPx;
+    if (!this.canvas) return;
+    const cssW = this.paddingCssPx * 2 + this.level.size.width * this.cellSizeCssPx;
+    const cssH = this.paddingCssPx * 2 + this.level.size.height * this.cellSizeCssPx;
 
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
@@ -393,60 +399,85 @@ export class MatchScene {
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
 
-    const ctx = this.ctx;
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (this.ctx) this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   private draw(): void {
-    if (!this.ctx || !this.canvas || !this.board) return;
+    if (!this.ctx || !this.canvas || !this.engine) return;
     const ctx = this.ctx;
-
-    const w = this.canvas.clientWidth;
-    const h = this.canvas.clientHeight;
-
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#0b1020";
-    ctx.fillRect(0, 0, w, h);
-
+    const boardW = this.level.size.width;
+    const boardH = this.level.size.height;
     const pad = this.paddingCssPx;
     const s = this.cellSizeCssPx;
 
-    for (let y = 0; y < this.board.height; y++) {
-      for (let x = 0; x < this.board.width; x++) {
+    ctx.clearRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
+    ctx.fillStyle = "rgba(255, 248, 235, 0.16)";
+    ctx.fillRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
+
+    for (let y = 0; y < boardH; y++) {
+      for (let x = 0; x < boardW; x++) {
         const left = pad + x * s;
         const top = pad + y * s;
-        const v = this.board.get(x, y);
 
-        if (v === null) {
-          ctx.fillStyle = "rgba(255,255,255,0.06)";
-        } else {
-          ctx.fillStyle = colorFor(v);
+        if (this.engine.isBlocked(x, y)) {
+          ctx.fillStyle = "rgba(46, 37, 29, 0.72)";
+          ctx.fillRect(left + 2, top + 2, s - 4, s - 4);
+          ctx.strokeStyle = "rgba(255,255,255,0.10)";
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(left + 4, top + 4, s - 8, s - 8);
+          continue;
         }
-        ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
 
-        if (v !== null) {
-          ctx.fillStyle = "rgba(255,255,255,0.92)";
-          ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(shortLabel(v), left + s / 2, top + s / 2);
+        if (this.engine.isGate(x, y)) {
+          ctx.fillStyle = this.engine.isGateOpen(x, y) ? "rgba(6, 214, 160, 0.10)" : "rgba(255, 209, 102, 0.10)";
+          ctx.fillRect(left + 3, top + 3, s - 6, s - 6);
+          ctx.strokeStyle = this.engine.isGateOpen(x, y) ? "rgba(6,214,160,0.70)" : "rgba(255,209,102,0.75)";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(left + 6, top + 6, s - 12, s - 12);
+          continue;
+        }
+
+        const materialId = this.engine.getTileId(x, y);
+        if (materialId === null) {
+          ctx.fillStyle = "rgba(0,0,0,0.06)";
+          ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
+          continue;
+        }
+
+        ctx.fillStyle = "rgba(0,0,0,0.10)";
+        ctx.fillRect(left + 1, top + 1, s - 2, s - 2);
+        drawStickerInCell(ctx, materialId, left, top, s);
+
+        const hits = this.engine.getLockHits(x, y);
+        if (hits > 0) {
+          ctx.save();
+          ctx.strokeStyle = "rgba(255,255,255,0.42)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(left + 12, top + 12);
+          ctx.lineTo(left + s - 12, top + s - 12);
+          if (hits === 2) {
+            ctx.moveTo(left + s - 12, top + 12);
+            ctx.lineTo(left + 12, top + s - 12);
+          }
+          ctx.stroke();
+          ctx.restore();
         }
       }
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = 0; x <= this.board.width; x++) {
+    for (let x = 0; x <= boardW; x++) {
       const xx = pad + x * s;
       ctx.moveTo(xx, pad);
-      ctx.lineTo(xx, pad + this.board.height * s);
+      ctx.lineTo(xx, pad + boardH * s);
     }
-    for (let y = 0; y <= this.board.height; y++) {
+    for (let y = 0; y <= boardH; y++) {
       const yy = pad + y * s;
       ctx.moveTo(pad, yy);
-      ctx.lineTo(pad + this.board.width * s, yy);
+      ctx.lineTo(pad + boardW * s, yy);
     }
     ctx.stroke();
 
@@ -458,19 +489,11 @@ export class MatchScene {
       ctx.strokeRect(left + 2, top + 2, s - 4, s - 4);
     }
 
-    // Hint line animation + highlight
     if (this.hintPair && Date.now() < this.hintPair.until) {
       const now = Date.now();
-      const t = now - this.hintPair.start;
-      const drawProgress = Math.min(1, t / 500); // draw in first 0.5s then hold
+      const drawProgress = Math.min(1, (now - this.hintPair.start) / 500);
       const blink = Math.floor(now / 200) % 2;
-
-      // Draw path polyline (animated)
-      const toCanvas = (p: Point) => ({
-        x: pad + (p.x + 0.5) * s,
-        y: pad + (p.y + 0.5) * s,
-      });
-
+      const toCanvas = (p: Point) => ({ x: pad + (p.x + 0.5) * s, y: pad + (p.y + 0.5) * s });
       const pts = this.hintPair.path.map(toCanvas);
       if (pts.length >= 2) {
         let total = 0;
@@ -482,7 +505,6 @@ export class MatchScene {
           segLen.push(len);
           total += len;
         }
-
         const target = total * drawProgress;
         let acc = 0;
 
@@ -504,17 +526,14 @@ export class MatchScene {
             continue;
           }
           const remain = target - acc;
-          const r = len <= 0 ? 0 : Math.max(0, Math.min(1, remain / len));
-          const x = p0.x + (p1.x - p0.x) * r;
-          const y = p0.y + (p1.y - p0.y) * r;
-          ctx.lineTo(x, y);
+          const ratio = len <= 0 ? 0 : Math.max(0, Math.min(1, remain / len));
+          ctx.lineTo(p0.x + (p1.x - p0.x) * ratio, p0.y + (p1.y - p0.y) * ratio);
           break;
         }
         ctx.stroke();
         ctx.restore();
       }
 
-      // Highlight the two hint tiles
       ctx.strokeStyle = blink === 0 ? "rgba(6,214,160,0.95)" : "rgba(6,214,160,0.25)";
       ctx.lineWidth = 4;
       for (const p of [this.hintPair.a, this.hintPair.b]) {
@@ -524,19 +543,46 @@ export class MatchScene {
       }
     }
 
+    if (Date.now() < this.shiftHintUntil) {
+      ctx.save();
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.font = "12px system-ui";
+      ctx.fillText("风吹！棋盘移动了", 12, 18);
+      ctx.restore();
+    }
   }
 }
 
-function shortLabel(id: MaterialId): string {
-  const s = String(id);
-  if (s.length <= 4) return s;
-  return `${s.slice(0, 3)}…`;
+function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
 }
 
-function colorFor(id: MaterialId): string {
-  const s = String(id);
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  return `hsl(${hue} 70% 45%)`;
+function drawStickerInCell(
+  ctx: CanvasRenderingContext2D,
+  materialId: MaterialId,
+  left: number,
+  top: number,
+  size: number,
+) {
+  ctx.save();
+  drawRoundedRect(ctx, left + 4, top + 4, size - 8, size - 8, 14);
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.10)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
+  const img = getStickerImage(materialId);
+  if (!img) return;
+  const pad = 8;
+  const iconSize = size - pad * 2;
+  ctx.drawImage(img, left + pad, top + pad, iconSize, iconSize);
 }
